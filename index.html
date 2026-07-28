@@ -1244,7 +1244,10 @@ function renderChat(){
       document.getElementById("chatInp").disabled=true;
       document.getElementById("chatInp").placeholder="Modo somente leitura";
     }
-    unsubDM=onSnapshot(query(collection(db,"group_messages"),where("groupId","==",gid),orderBy("ts","asc")),snap=>{
+    const groupQuery=g
+      ? query(collection(db,"group_messages"),where("members","array-contains",user.uid),where("groupId","==",gid),orderBy("ts","asc"))
+      : query(collection(db,"group_messages"),where("groupId","==",gid),orderBy("ts","asc"));
+    unsubDM=onSnapshot(groupQuery,snap=>{
       const gMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,gMsgs,!g);
       if(g)markAsRead(gMsgs,"group_messages");
@@ -1260,7 +1263,7 @@ function renderChat(){
   const pres=presenceData[other.id];
   hdSub.textContent=pres?.online?"● Online agora":pres?.lastSeen?"Visto por último "+timeAgo(pres.lastSeen):"Offline";
   const cid=convId(user.uid,other.id);
-  unsubDM=onSnapshot(query(collection(db,"dm_messages"),where("convId","==",cid),orderBy("ts","asc")),snap=>{
+  unsubDM=onSnapshot(query(collection(db,"dm_messages"),where("participants","array-contains",user.uid),where("convId","==",cid),orderBy("ts","asc")),snap=>{
     const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMsgList(mc,dmMsgs,false);
     markAsRead(dmMsgs);
