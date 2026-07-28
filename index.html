@@ -274,6 +274,19 @@ tr:hover td{background:var(--s3);}
 .chat-inp{flex:1;background:var(--s3);border:1px solid var(--border);border-radius:16px;padding:8px 13px;color:var(--text);font-family:inherit;font-size:.78rem;resize:none;outline:none;min-height:34px;max-height:75px;line-height:1.5;}
 .chat-inp:focus{border-color:var(--accent2);}
 .chat-send{background:var(--accent2);border:none;border-radius:50%;width:34px;height:34px;color:#fff;cursor:pointer;font-size:.8rem;flex-shrink:0;}
+.attach-btn{background:var(--s3);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;color:var(--text2);cursor:pointer;font-size:.85rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.attach-btn:hover{background:var(--border);color:var(--text);}
+.attach-btn.recording{background:var(--urg);color:#fff;border-color:var(--urg);}
+.msg-file{display:flex;align-items:center;gap:8px;background:var(--s3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;max-width:220px;}
+.msg-file-icon{font-size:1.3rem;flex-shrink:0;}
+.msg-file-info{overflow:hidden;flex:1;}
+.msg-file-name{font-size:.72rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}
+.msg-file-size{font-size:.63rem;color:var(--text2);}
+.msg-file-dl{background:var(--accent2);border:none;border-radius:6px;color:#fff;font-size:.65rem;padding:3px 8px;cursor:pointer;text-decoration:none;flex-shrink:0;}
+.msg-img{max-width:200px;border-radius:10px;display:block;cursor:pointer;}
+.msg-audio{width:200px;height:34px;}
+.msg-del-file{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.7rem;padding:2px;margin-left:4px;}
+.msg-del-file:hover{color:var(--urg);}
 
 /* SETTINGS */
 .settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:13px;}
@@ -499,8 +512,20 @@ tr:hover td{background:var(--s3);}
           </div>
           <div class="chat-msgs" id="chatMsgs"></div>
           <div class="chat-inp-area">
+            <input type="file" id="fileInp" style="display:none" accept=".pdf,.xml,.doc,.docx,.xls,.xlsx,.csv,.txt,image/*">
+            <button class="attach-btn" id="btnAttach" title="Enviar arquivo">📎</button>
+            <button class="attach-btn" id="btnMic" title="Gravar áudio">🎤</button>
             <textarea class="chat-inp" id="chatInp" placeholder="Mensagem... (Enter para enviar)" rows="1"></textarea>
             <button class="chat-send" id="btnSendMsg">↑</button>
+          </div>
+          <div id="recordingBar" style="display:none;padding:8px 14px;background:rgba(224,92,92,.1);border-top:1px solid rgba(224,92,92,.2);align-items:center;gap:10px;">
+            <div style="width:9px;height:9px;border-radius:50%;background:var(--urg);animation:pulse-dot 1s infinite;"></div>
+            <span style="font-size:.75rem;color:var(--urg);font-weight:600">Gravando... <span id="recTimer">0:00</span></span>
+            <button id="btnStopRec" style="margin-left:auto;background:var(--urg);border:none;border-radius:14px;color:#fff;font-size:.7rem;font-weight:700;padding:5px 12px;cursor:pointer;">⏹ Parar e enviar</button>
+            <button id="btnCancelRec" style="background:var(--s3);border:1px solid var(--border);border-radius:14px;color:var(--text2);font-size:.7rem;padding:5px 12px;cursor:pointer;">✕ Cancelar</button>
+          </div>
+          <div id="uploadBar" style="display:none;padding:8px 14px;background:rgba(124,111,205,.1);border-top:1px solid rgba(124,111,205,.2);align-items:center;gap:10px;">
+            <span style="font-size:.75rem;color:var(--accent2)">📤 Enviando arquivo...</span>
           </div>
         </div>
       </div>
@@ -581,6 +606,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const gp = new GoogleAuthProvider();
 
+// ── CLOUDINARY (upload gratuito de arquivos, sem cartão) ──
+const CLOUDINARY_CLOUD_NAME = "fqgrming";
+const CLOUDINARY_UPLOAD_PRESET = "dp_gestor_chat";
+const STORAGE_CAP_BYTES = 20*1024*1024*1024; // margem de segurança de 20GB
+
 // ── STATE ──
 let user=null, isAdmin=false, tasks=[], msgs=[], members=[], empresas=[];
 let empFilter="all", searchQ="", editId=null;
@@ -631,8 +661,129 @@ function today(o=0){const d=new Date();d.setDate(d.getDate()+o);return d.toISOSt
 function pPeso(p){return{urg:0,imp:1,nor:2,low:3}[p]??4;}
 function parseDayLbl(s){const[y,m,d]=s.split("-");const dt=new Date(+y,+m-1,+d);return{n:DAYS[dt.getDay()],d:`${d}/${m}/${y}`};}
 function dleft(ts){const ms=ts?.toDate?ts.toDate().getTime():ts||0;return Math.ceil((ms+3*24*60*60*1000-Date.now())/86400000);}
+function fileIcon(name){
+  const ext=(name.split(".").pop()||"").toLowerCase();
+  if(ext==="pdf")return"📕";
+  if(["doc","docx"].includes(ext))return"📘";
+  if(["xls","xlsx","csv"].includes(ext))return"📗";
+  if(ext==="xml")return"🗂️";
+  if(ext==="txt")return"📃";
+  return"📄";
+}
+function formatSize(bytes){
+  if(bytes<1024)return bytes+" B";
+  if(bytes<1024*1024)return(bytes/1024).toFixed(1)+" KB";
+  return(bytes/(1024*1024)).toFixed(1)+" MB";
+}
 function getEmp(id){return empresas.find(e=>e.id===id)||{id:"outro",label:"Outro",color:"#606078"};}
 function convId(a,b){return[a,b].sort().join("_");}
+function getTargetCollection(){
+  if(activeChat==="group")return"chat";
+  if(activeChat.startsWith("customgroup:"))return"group_messages";
+  if(activeChat.startsWith("monitor:"))return"dm_messages";
+  return"dm_messages";
+}
+function buildBaseMsgData(){
+  if(activeChat==="group"){
+    return{uid:user.uid,name:user.displayName||user.email,ts:serverTimestamp()};
+  }
+  if(activeChat.startsWith("customgroup:")){
+    const gid=activeChat.slice(12);
+    const g=groups.find(x=>x.id===gid);
+    if(!g)return null;
+    return{groupId:gid,members:g.members,from:user.uid,ts:serverTimestamp(),readBy:[user.uid]};
+  }
+  if(activeChat.startsWith("monitor:"))return null;
+  const cid=convId(user.uid,activeChat);
+  return{convId:cid,participants:[user.uid,activeChat],from:user.uid,ts:serverTimestamp(),readBy:[user.uid]};
+}
+async function deleteMsg(coll,msgId){
+  if(!confirm("Excluir esta mensagem? Ela sumirá do chat imediatamente."))return;
+  try{await deleteDoc(doc(db,coll,msgId));}catch(e){alert("Erro ao excluir: "+e.message);}
+}
+async function getStorageUsage(){
+  try{const snap=await getDoc(doc(db,"config","storage_usage"));return snap.exists()?(snap.data().totalBytes||0):0;}catch(e){return 0;}
+}
+async function addStorageUsage(bytes){
+  try{const cur=await getStorageUsage();await setDoc(doc(db,"config","storage_usage"),{totalBytes:cur+bytes},{merge:true});}catch(e){}
+}
+async function uploadAndSend(file,kind){
+  const coll=getTargetCollection();
+  const base=buildBaseMsgData();
+  if(!coll||!base){alert("Não é possível enviar nesta conversa.");return;}
+  if(file.size>10*1024*1024){alert("Arquivo maior que 10MB. Escolha um arquivo menor.");return;}
+  const bar=document.getElementById("uploadBar");
+  bar.style.display="flex";
+  try{
+    const currentUsage=await getStorageUsage();
+    if(currentUsage+file.size>STORAGE_CAP_BYTES){
+      alert("Limite de armazenamento de arquivos atingido. Envio de arquivos/áudio bloqueado temporariamente — apenas mensagens de texto continuam disponíveis. Peça ao Admin para liberar espaço no Cloudinary.");
+      bar.style.display="none";return;
+    }
+    const fd=new FormData();
+    fd.append("file",file);
+    fd.append("upload_preset",CLOUDINARY_UPLOAD_PRESET);
+    fd.append("folder","dp_gestor_chat");
+    const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,{method:"POST",body:fd});
+    const data=await res.json();
+    if(!res.ok||data.error)throw new Error(data.error?.message||"Falha no upload");
+    const msgData={...base,text:""};
+    if(kind==="audio"){msgData.audioUrl=data.secure_url;}
+    else{msgData.fileUrl=data.secure_url;msgData.fileName=file.name||"audio.webm";msgData.fileType=file.type;msgData.fileSize=file.size;}
+    await addDoc(collection(db,coll),msgData);
+    await addStorageUsage(file.size);
+  }catch(e){alert("Erro ao enviar arquivo: "+e.message);}
+  bar.style.display="none";
+}
+
+let mediaRecorder=null,recordedChunks=[],recTimerInterval=null,recSeconds=0;
+function stopRecordingUI(){
+  clearInterval(recTimerInterval);
+  document.getElementById("recordingBar").style.display="none";
+  document.getElementById("btnMic").classList.remove("recording");
+  mediaRecorder=null;
+}
+document.getElementById("btnAttach").addEventListener("click",()=>document.getElementById("fileInp").click());
+document.getElementById("fileInp").addEventListener("change",e=>{
+  const file=e.target.files[0];
+  if(file)uploadAndSend(file,"file");
+  e.target.value="";
+});
+document.getElementById("btnMic").addEventListener("click",async()=>{
+  if(mediaRecorder)return;
+  const coll=getTargetCollection();const base=buildBaseMsgData();
+  if(!coll||!base){alert("Não é possível gravar áudio nesta conversa.");return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    recordedChunks=[];
+    mediaRecorder=new MediaRecorder(stream);
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recordedChunks.push(e.data);};
+    mediaRecorder.start();
+    recSeconds=0;
+    document.getElementById("recordingBar").style.display="flex";
+    document.getElementById("btnMic").classList.add("recording");
+    recTimerInterval=setInterval(()=>{
+      recSeconds++;
+      const m=Math.floor(recSeconds/60),s=recSeconds%60;
+      document.getElementById("recTimer").textContent=`${m}:${s.toString().padStart(2,"0")}`;
+    },1000);
+  }catch(e){alert("Não foi possível acessar o microfone: "+e.message);}
+});
+document.getElementById("btnStopRec").addEventListener("click",()=>{
+  if(!mediaRecorder)return;
+  mediaRecorder.onstop=async()=>{
+    const blob=new Blob(recordedChunks,{type:"audio/webm"});
+    stopRecordingUI();
+    if(blob.size>10*1024*1024){alert("Áudio muito longo (limite 10MB).");return;}
+    await uploadAndSend(blob,"audio");
+  };
+  mediaRecorder.stop();
+  mediaRecorder.stream.getTracks().forEach(t=>t.stop());
+});
+document.getElementById("btnCancelRec").addEventListener("click",()=>{
+  if(mediaRecorder){mediaRecorder.onstop=null;mediaRecorder.stop();mediaRecorder.stream.getTracks().forEach(t=>t.stop());}
+  stopRecordingUI();
+});
 function timeAgo(ts){
   if(!ts)return"";
   const ms=ts?.toDate?ts.toDate().getTime():ts;
@@ -1273,6 +1424,7 @@ function renderChat(){
 function renderMsgList(container,list,readonly){
   container.innerHTML="";
   if(!list.length){container.innerHTML='<div class="empty">Nenhuma mensagem. 👋</div>';return;}
+  const coll=getTargetCollection();
   list.forEach(msg=>{
     const mine=msg.uid===user?.uid||msg.from===user?.uid;
     const senderId=msg.uid||msg.from;
@@ -1280,11 +1432,33 @@ function renderMsgList(container,list,readonly){
     const d=document.createElement("div");d.className=`msg${mine&&!readonly?" mine":""}`;
     const readers=(msg.readBy||[]).filter(uid=>uid!==senderId);
     const readHtml=readers.length?`<div class="read-receipt"><div class="rr-avs">${readers.map(uid=>{const rm=members.find(x=>x.id===uid);return rm?`<div class="rr-av" style="background:${rm.color}" title="${esc(rm.name)}">${rm.ini||"?"}</div>`:"";}).join("")}</div><span>visto</span></div>`:"";
+    const canDelete=coll&&(isAdmin||(!readonly&&senderId===user?.uid));
+
+    let contentHtml="";
+    if(msg.audioUrl){
+      contentHtml=`<audio class="msg-audio" controls src="${msg.audioUrl}"></audio>`;
+    }else if(msg.fileUrl){
+      if((msg.fileType||"").startsWith("image/")){
+        contentHtml=`<img class="msg-img" src="${msg.fileUrl}" onclick="window.open('${msg.fileUrl}','_blank')">`;
+      }else{
+        contentHtml=`<div class="msg-file">
+          <div class="msg-file-icon">${fileIcon(msg.fileName||"")}</div>
+          <div class="msg-file-info"><div class="msg-file-name">${esc(msg.fileName||"arquivo")}</div><div class="msg-file-size">${formatSize(msg.fileSize||0)}</div></div>
+          <a class="msg-file-dl" href="${msg.fileUrl}" target="_blank" download>Abrir</a>
+        </div>`;
+      }
+    }else{
+      contentHtml=`<div class="msg-bub">${esc(msg.text)}</div>`;
+    }
+
     d.innerHTML=`<div class="msg-av" style="background:${m.color}">${m.ini||"?"}</div>
       <div>${(!mine||readonly)?`<div class="msg-sender">${esc(m.name)}</div>`:""}
-      <div class="msg-bub">${esc(msg.text)}</div>
-      <div class="msg-time">${fmtDT(msg.ts)}</div>
+      ${contentHtml}
+      <div class="msg-time">${fmtDT(msg.ts)}${canDelete?` <button class="msg-del-file" data-del="1">🗑</button>`:""}</div>
       ${mine&&!readonly?readHtml:""}</div>`;
+    if(canDelete){
+      d.querySelector('[data-del="1"]')?.addEventListener("click",()=>deleteMsg(coll,msg.id));
+    }
     container.appendChild(d);
   });
   container.scrollTop=container.scrollHeight;
