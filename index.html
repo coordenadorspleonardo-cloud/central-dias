@@ -247,6 +247,7 @@ tr:hover td{background:var(--s3);}
 .m-name{font-size:.72rem;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .m-role{font-size:.61rem;color:var(--text2);}
 .online{width:6px;height:6px;border-radius:50%;background:var(--nor);flex-shrink:0;}
+.conv-badge{background:var(--urg);color:#fff;border-radius:9px;font-size:.62rem;font-weight:800;padding:1px 6px;flex-shrink:0;margin-left:4px;}
 .offline-txt{font-size:.58rem;color:var(--text3);flex-shrink:0;white-space:nowrap;}
 .chat-sb-divider{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:8px 8px 4px;}
 .monitor-item{display:flex;align-items:center;gap:6px;padding:6px 7px;border-radius:8px;cursor:pointer;transition:background .2s;font-size:.68rem;color:var(--text2);}
@@ -479,7 +480,7 @@ tr:hover td{background:var(--s3);}
     <button class="tab" data-tab="planilha">📊 Planilha</button>
     <button class="tab" data-tab="dash">📈 Dashboard</button>
     <button class="tab" data-tab="concluidas">✅ Concluídas <span class="tbadge g" id="dcnt">0</span></button>
-    <button class="tab" data-tab="chat">💬 Chat</button>
+    <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:var(--urg)"></span></button>
     <button class="tab" data-tab="config">⚙️ Tema</button>
   </div>
 
@@ -710,13 +711,34 @@ let sessionStartMs=Date.now();
 let firstTaskSnap=true;
 let unsubBgChat=null,unsubBgDM=null,unsubBgGroup=null;
 let prevTasksDone={};
+let unreadState={group:0,dms:{},groups:{}};
 
 function tsToMs(ts){return ts?.toDate?ts.toDate().getTime():(typeof ts==="number"?ts:0);}
+
+function recomputeUnreadBadge(){
+  const dmConvs=Object.values(unreadState.dms).filter(n=>n>0).length;
+  const groupConvs=Object.values(unreadState.groups).filter(n=>n>0).length;
+  const convCount=(unreadState.group>0?1:0)+dmConvs+groupConvs;
+  const msgCount=unreadState.group+Object.values(unreadState.dms).reduce((a,b)=>a+b,0)+Object.values(unreadState.groups).reduce((a,b)=>a+b,0);
+  const badge=document.getElementById("chatTabBadge");
+  if(!badge)return;
+  if(msgCount>0){
+    badge.style.display="inline-flex";
+    badge.textContent=`${convCount}c·${msgCount}m`;
+    badge.title=`${convCount} conversa${convCount!==1?"s":""} com ${msgCount} mensage${msgCount!==1?"ns":"m"} não lida${msgCount!==1?"s":""}`;
+  }else{
+    badge.style.display="none";
+  }
+  renderMbrList();
+}
 
 function startNotificationListeners(){
   sessionStartMs=Date.now();
   let firstChat=true,firstDM=true,firstGroup=true;
   unsubBgChat=onSnapshot(collection(db,"chat"),snap=>{
+    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    unreadState.group=msgs.filter(m=>m.uid!==user.uid&&!(m.readBy||[]).includes(user.uid)).length;
+    recomputeUnreadBadge();
     if(firstChat){firstChat=false;return;}
     snap.docChanges().forEach(ch=>{
       if(ch.type==="added"){
@@ -726,6 +748,15 @@ function startNotificationListeners(){
     });
   });
   unsubBgDM=onSnapshot(query(collection(db,"dm_messages"),where("participants","array-contains",user.uid)),snap=>{
+    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const byConv={};
+    msgs.forEach(m=>{
+      if(m.from===user.uid||(m.readBy||[]).includes(user.uid))return;
+      const other=(m.participants||[]).find(p=>p!==user.uid);
+      if(other)byConv[other]=(byConv[other]||0)+1;
+    });
+    unreadState.dms=byConv;
+    recomputeUnreadBadge();
     if(firstDM){firstDM=false;return;}
     snap.docChanges().forEach(ch=>{
       if(ch.type==="added"){
@@ -735,6 +766,14 @@ function startNotificationListeners(){
     });
   });
   unsubBgGroup=onSnapshot(query(collection(db,"group_messages"),where("members","array-contains",user.uid)),snap=>{
+    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const byGroup={};
+    msgs.forEach(m=>{
+      if(m.from===user.uid||(m.readBy||[]).includes(user.uid))return;
+      byGroup[m.groupId]=(byGroup[m.groupId]||0)+1;
+    });
+    unreadState.groups=byGroup;
+    recomputeUnreadBadge();
     if(firstGroup){firstGroup=false;return;}
     snap.docChanges().forEach(ch=>{
       if(ch.type==="added"){
@@ -746,6 +785,7 @@ function startNotificationListeners(){
 }
 function stopNotificationListeners(){
   [unsubBgChat,unsubBgDM,unsubBgGroup].forEach(u=>u&&u());
+  unreadState={group:0,dms:{},groups:{}};
 }
 function getTargetCollection(){
   if(activeChat==="group")return"chat";
@@ -1442,6 +1482,7 @@ function renderChat(){
     unsubDM=onSnapshot(query(collection(db,"chat"),orderBy("ts","asc")),snap=>{
       msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,msgs,false);
+      markAsRead(msgs,"chat");
     });
     return;
   }
@@ -1566,7 +1607,8 @@ function renderMbrList(){
   // GERAL
   const geralEl=document.createElement("div");
   geralEl.className=`member${activeChat==="group"?" active-chat":""}`;
-  geralEl.innerHTML=`<div class="m-av" style="background:var(--accent2)">DP</div><div class="m-name">Geral — Equipe</div>`;
+  const geralUnread=unreadState.group||0;
+  geralEl.innerHTML=`<div class="m-av" style="background:var(--accent2)">DP</div><div class="m-name">Geral — Equipe</div>${geralUnread>0?`<span class="conv-badge">${geralUnread}</span>`:""}`;
   geralEl.addEventListener("click",()=>{activeChat="group";renderMbrList();renderChat();});
   ml.appendChild(geralEl);
 
@@ -1586,7 +1628,8 @@ function renderMbrList(){
   groups.forEach(g=>{
     const d=document.createElement("div");
     d.className=`member${activeChat==="customgroup:"+g.id?" active-chat":""}`;
-    d.innerHTML=`<div class="m-av" style="background:var(--imp)">👥</div><div style="flex:1;overflow:hidden"><div class="m-name">${esc(g.name)}</div><div class="m-role">${(g.members||[]).length} membros</div></div>`;
+    const gUnread=unreadState.groups[g.id]||0;
+    d.innerHTML=`<div class="m-av" style="background:var(--imp)">👥</div><div style="flex:1;overflow:hidden"><div class="m-name">${esc(g.name)}</div><div class="m-role">${(g.members||[]).length} membros</div></div>${gUnread>0?`<span class="conv-badge">${gUnread}</span>`:""}`;
     d.addEventListener("click",()=>{activeChat="customgroup:"+g.id;renderMbrList();renderChat();});
     ml.appendChild(d);
   });
@@ -1598,9 +1641,10 @@ function renderMbrList(){
   others.forEach(m=>{
     const pres=presenceData[m.id];
     const isOnline=pres?.online;
+    const dmUnread=unreadState.dms[m.id]||0;
     const d=document.createElement("div");
     d.className=`member${activeChat===m.id?" active-chat":""}`;
-    d.innerHTML=`<div class="m-av" style="background:${m.color}">${m.ini||"?"}</div><div style="flex:1;overflow:hidden"><div class="m-name">${esc(m.name)}</div><div class="m-role">${esc(m.role||"Colaborador")}</div></div>${isOnline?'<div class="online"></div>':`<div class="offline-txt">${pres?.lastSeen?timeAgo(pres.lastSeen):""}</div>`}`;
+    d.innerHTML=`<div class="m-av" style="background:${m.color}">${m.ini||"?"}</div><div style="flex:1;overflow:hidden"><div class="m-name">${esc(m.name)}</div><div class="m-role">${esc(m.role||"Colaborador")}</div></div>${dmUnread>0?`<span class="conv-badge">${dmUnread}</span>`:""}${isOnline?'<div class="online"></div>':`<div class="offline-txt">${pres?.lastSeen?timeAgo(pres.lastSeen):""}</div>`}`;
     d.addEventListener("click",()=>{activeChat=m.id;renderMbrList();renderChat();});
     ml.appendChild(d);
   });
@@ -1765,7 +1809,7 @@ async function sendMsg(){
   if(activeChat.startsWith("monitor:"))return;
   try{
     if(activeChat==="group"){
-      await addDoc(collection(db,"chat"),{uid:user.uid,name:user.displayName||user.email,text,ts:serverTimestamp()});
+      await addDoc(collection(db,"chat"),{uid:user.uid,name:user.displayName||user.email,text,ts:serverTimestamp(),readBy:[user.uid]});
     }else if(activeChat.startsWith("customgroup:")){
       const gid=activeChat.slice(12);
       const g=groups.find(x=>x.id===gid);
