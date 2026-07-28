@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DP Gestor</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{--bg:#080910;--s1:#0f1018;--s2:#141520;--s3:#1a1b2e;--border:#22243a;--border2:#2e3050;--text:#eeeef5;--text2:#8888aa;--text3:#44445a;--accent:#c8a96e;--accent2:#7c6fcd;--urg:#e05c5c;--imp:#e08c3a;--nor:#4caf7d;--low:#4a8fd4;--r:12px;--navy:#1a1f36;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -504,6 +507,9 @@ tr:hover td{background:var(--s3);}
     <div class="view" id="view-kanban"><div class="kanban-grid" id="kgrid"></div></div>
     <div class="view" id="view-agenda"><div class="tl" id="agTl"></div></div>
     <div class="view" id="view-planilha">
+      <div style="display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end;">
+        <button id="btnOpenExport" class="btn-save-m">📤 Exportar Relatório</button>
+      </div>
       <div class="tbl-wrap">
         <table><thead><tr><th>✓</th><th>Empresa</th><th>Prioridade</th><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Ações</th></tr></thead>
         <tbody id="tblBody"></tbody></table>
@@ -743,7 +749,8 @@ let unsubActivity=null;
 async function logActivity(type,task){
   try{
     await addDoc(collection(db,"activity_log"),{
-      type,taskTit:task.tit,sec:task.sec,emp:task.emp,
+      type,taskId:task.id||null,taskTit:task.tit,sec:task.sec,emp:task.emp,
+      prio:task.prio||null,resp:task.resp||null,
       actorId:user.uid,actorName:user.displayName||user.email,ts:serverTimestamp()
     });
   }catch(e){}
@@ -2000,8 +2007,174 @@ async function saveTask(){
   }catch(e){alert("Erro: "+e.message);}
 }
 
-function openFocus(){
-  const tf=today();
+function getExportData(filters){
+  filters=filters||{};
+  const liveTasks=tasks.filter(t=>isAdmin||!ADMIN_SECS.includes(t.sec));
+  let rows=liveTasks.map(t=>({
+    id:t.id,emp:t.emp,prio:t.prio,tit:t.tit,det:t.det||"",resp:t.resp||"",
+    date:t.date||"",sec:t.sec,done:!!t.done,doneAt:t.doneAt||null
+  }));
+
+  const existingIds=new Set(rows.map(r=>r.id));
+  const logCompleted=activityLog.filter(a=>a.type==="completed"&&(isAdmin||!ADMIN_SECS.includes(a.sec)));
+  logCompleted.forEach(a=>{
+    if(a.taskId&&existingIds.has(a.taskId))return;
+    rows.push({
+      id:a.taskId||("log_"+a.ts?.seconds+Math.random()),
+      emp:a.emp,prio:a.prio||"nor",tit:a.taskTit,det:"",resp:a.resp||"",
+      date:"",sec:a.sec,done:true,doneAt:a.ts
+    });
+  });
+
+  if(filters.emp&&filters.emp!=="all")rows=rows.filter(r=>r.emp===filters.emp);
+  if(filters.resp&&filters.resp!=="all")rows=rows.filter(r=>r.resp===filters.resp);
+  if(filters.prio&&filters.prio!=="all")rows=rows.filter(r=>r.prio===filters.prio);
+  if(filters.dateFrom||filters.dateTo){
+    rows=rows.filter(r=>{
+      const refDate=r.done&&r.doneAt?(r.doneAt?.toDate?r.doneAt.toDate():new Date(tsToMs(r.doneAt))):(r.date?new Date(r.date+"T00:00:00"):null);
+      if(!refDate)return false;
+      if(filters.dateFrom&&refDate<filters.dateFrom)return false;
+      if(filters.dateTo&&refDate>filters.dateTo)return false;
+      return true;
+    });
+  }
+
+  return rows.map(r=>{
+    const emp=getEmp(r.emp);
+    const resp=members.find(m=>m.id===r.resp);
+    return {
+      Empresa:emp.label,
+      Prioridade:PRIOS[r.prio]?.l||r.prio||"—",
+      Tarefa:r.tit,
+      Detalhes:r.det,
+      Responsavel:resp?resp.name:"—",
+      Prazo:r.date?fmtD(r.date):"—",
+      Secao:SECS[r.sec]||r.sec,
+      Status:r.done?"✅ Concluída":"⏳ Pendente",
+      DataConclusao:r.done&&r.doneAt?fmtDT(r.doneAt):"—"
+    };
+  }).sort((a,b)=>(a.Status<b.Status?1:-1));
+}
+function exportExcel(filters){
+  const data=getExportData(filters);
+  if(!data.length){alert("Nenhuma tarefa encontrada com esses filtros.");return;}
+  const ws=window.XLSX.utils.json_to_sheet(data);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Tarefas");
+  window.XLSX.writeFile(wb,`relatorio_dp_gestor_${today()}.xlsx`);
+}
+function exportPDF(filters){
+  const data=getExportData(filters);
+  if(!data.length){alert("Nenhuma tarefa encontrada com esses filtros.");return;}
+  const { jsPDF }=window.jspdf;
+  const docPdf=new jsPDF({orientation:"landscape"});
+  const empLabel=filters?.emp&&filters.emp!=="all"?getEmp(filters.emp).label:"Todas";
+  const respLabel=filters?.resp&&filters.resp!=="all"?(members.find(m=>m.id===filters.resp)?.name||"—"):"Todos";
+  const prioLabel=filters?.prio&&filters.prio!=="all"?(PRIOS[filters.prio]?.l||filters.prio):"Todas";
+  docPdf.setFontSize(14);
+  docPdf.text("Relatório de Tarefas — DP Gestor",14,15);
+  docPdf.setFontSize(9);
+  docPdf.text(`Gerado em ${fmtD(today())} · Empresa: ${empLabel} · Responsável: ${respLabel} · Prioridade: ${prioLabel}`,14,21);
+  docPdf.autoTable({
+    startY:26,
+    head:[["Empresa","Prioridade","Tarefa","Responsável","Prazo","Seção","Status","Concluída em"]],
+    body:data.map(d=>[d.Empresa,d.Prioridade,d.Tarefa,d.Responsavel,d.Prazo,d.Secao,d.Status,d.DataConclusao]),
+    styles:{fontSize:7.5},
+    headStyles:{fillColor:[26,31,54]}
+  });
+  docPdf.save(`relatorio_dp_gestor_${today()}.pdf`);
+}
+
+function getFiltersFromModal(ov){
+  const emp=ov.querySelector("#exp-emp").value;
+  const resp=ov.querySelector("#exp-resp").value;
+  const prio=ov.querySelector("#exp-prio").value;
+  const periodo=ov.querySelector("#exp-periodo").value;
+  let dateFrom=null,dateTo=null;
+  const now=new Date();
+  if(periodo==="1mes"){dateFrom=new Date(now);dateFrom.setDate(dateFrom.getDate()-30);}
+  else if(periodo==="2meses"){dateFrom=new Date(now);dateFrom.setDate(dateFrom.getDate()-60);}
+  else if(periodo==="6meses"){dateFrom=new Date(now);dateFrom.setDate(dateFrom.getDate()-180);}
+  else if(periodo==="1ano"){dateFrom=new Date(now);dateFrom.setDate(dateFrom.getDate()-365);}
+  else if(periodo==="custom"){
+    const de=ov.querySelector("#exp-de").value;
+    const ate=ov.querySelector("#exp-ate").value;
+    dateFrom=de?new Date(de+"T00:00:00"):null;
+    dateTo=ate?new Date(ate+"T23:59:59"):null;
+  }
+  return {emp,resp,prio,dateFrom,dateTo};
+}
+
+function openExportModal(){
+  const visEmp=empresas.filter(e=>isAdmin||!e.adminOnly);
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:420px">
+    <h2>📤 Exportar Relatório</h2>
+    <div class="fg-grid">
+      <div class="fg full"><label>Empresa</label>
+        <select id="exp-emp">
+          <option value="all">Todas as empresas</option>
+          ${visEmp.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="fg full"><label>Responsável / Colaborador</label>
+        <select id="exp-resp">
+          <option value="all">Todos os colaboradores</option>
+          ${members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="fg full"><label>Prioridade / Urgência</label>
+        <select id="exp-prio">
+          <option value="all">Todas as prioridades</option>
+          <option value="urg">🔴 Urgente</option>
+          <option value="imp">🟠 Importante</option>
+          <option value="nor">🟢 Normal</option>
+          <option value="low">🔵 Baixa</option>
+        </select>
+      </div>
+      <div class="fg full"><label>Período</label>
+        <select id="exp-periodo">
+          <option value="all">Todo o período</option>
+          <option value="1mes">Último mês</option>
+          <option value="2meses">Últimos 2 meses</option>
+          <option value="6meses">Últimos 6 meses</option>
+          <option value="1ano">Último ano</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div class="fg" id="exp-de-wrap" style="display:none"><label>De</label><input type="date" id="exp-de"></div>
+      <div class="fg" id="exp-ate-wrap" style="display:none"><label>Até</label><input type="date" id="exp-ate"></div>
+    </div>
+    <div style="background:rgba(76,175,125,.08);border:1px solid rgba(76,175,125,.2);border-radius:8px;padding:9px 11px;font-size:.68rem;color:var(--nor);margin-top:10px;line-height:1.5">
+      ✅ Este relatório combina tarefas pendentes atuais com o histórico de conclusões (que nunca é apagado), mostrando data de conclusão para cada tarefa finalizada.
+    </div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseExport">Cancelar</button>
+      <button class="btn-cancel" id="btnDoExportExcel">📊 Excel</button>
+      <button class="btn-save-m" id="btnDoExportPDF">📄 PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCloseExport").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#exp-periodo").addEventListener("change",function(){
+    const custom=this.value==="custom";
+    ov.querySelector("#exp-de-wrap").style.display=custom?"flex":"none";
+    ov.querySelector("#exp-ate-wrap").style.display=custom?"flex":"none";
+  });
+  ov.querySelector("#btnDoExportExcel").addEventListener("click",()=>{
+    exportExcel(getFiltersFromModal(ov));
+    ov.remove();
+  });
+  ov.querySelector("#btnDoExportPDF").addEventListener("click",()=>{
+    exportPDF(getFiltersFromModal(ov));
+    ov.remove();
+  });
+}
+document.getElementById("btnOpenExport").addEventListener("click",openExportModal);
+
+function openFocus(){  const tf=today();
   const ts=tasks.filter(t=>!t.done&&t.date===tf&&(isAdmin||!ADMIN_SECS.includes(t.sec)));
   const body=document.getElementById("focusBody");body.innerHTML="";
   if(!ts.length){body.innerHTML='<div class="empty">🎉 Nenhuma tarefa para hoje!</div>';}
