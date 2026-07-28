@@ -729,8 +729,20 @@ function parseMentions(text){
   members.forEach(m=>{
     if(m.id===user?.uid)return;
     const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\function soundMessage(){playChime([{freq:880,start:0,dur:.15},{freq:1108,start:.08,dur:.18}]);}
+function soundMention(){playChime([{freq:784,start:0,dur:.2},{freq:988,start:.15,dur:.22},{freq:784,start:.32,dur:.2},{freq:988,start:.48,dur:.38}]);}
+function soundTaskCreated(){playChime([{freq:660,start:0,dur:.12},{freq:880,start:.1,dur:.2}]);}
+function soundTaskDone(){playChime([{freq:523,start:0,dur:.1},{freq:659,start:.09,dur:.1},{freq:784,start:.18,dur:.28}]);}
+function parseMentions(text){
+  const found=[];
+  members.forEach(m=>{
+    if(m.id===user?.uid)return;
+    const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\function soundMessage(){playChime([{freq:880,start:0,dur:.15},{freq:1108,start:.08,dur:.18}]);}
 function soundTaskCreated(){playChime([{freq:660,start:0,dur:.12},{freq:880,start:.1,dur:.2}]);}
 function soundTaskDone(){playChime([{freq:523,start:0,dur:.1},{freq:659,start:.09,dur:.1},{freq:784,start:.18,dur:.28}]);}");
+    if(esc2&&new RegExp("@"+esc2,"i").test(text))found.push(m.id);
+  });
+  return found;
+}");
     if(esc2&&new RegExp("@"+esc2,"i").test(text))found.push(m.id);
   });
   return found;
