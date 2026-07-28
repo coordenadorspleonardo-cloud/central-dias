@@ -564,9 +564,11 @@ import {
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
-let activeChat="group"; // "group" ou uid do membro
+let activeChat="group"; // "group" ou uid do membro ou "customgroup:ID" ou "monitor:convId"
 let unsubDM=null;
 let presenceInterval=null;
+let groups=[];
+let unsubGroups=null;
 const app = initializeApp({
   apiKey:"AIzaSyAIFImaQ5ONMGLudUhQMkoPjQeMBFAbENs",
   authDomain:"gestor-dp-ad1fa.firebaseapp.com",
@@ -865,8 +867,13 @@ function startListeners(){
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
     renderMbrList();
   });
+  // Grupos — o usuário só recebe via listener os grupos que participa; admin busca todos à parte
+  unsubGroups=onSnapshot(query(collection(db,"group_chats"),where("members","array-contains",user.uid)),snap=>{
+    groups=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderMbrList();
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THREE=3*24*60*60*1000;
@@ -1223,6 +1230,28 @@ function renderChat(){
   document.getElementById("chatInp").disabled=false;
   document.getElementById("chatInp").placeholder="Mensagem... (Enter para enviar)";
 
+  if(activeChat.startsWith("customgroup:")){
+    const gid=activeChat.slice(12);
+    const g=groups.find(x=>x.id===gid);
+    hdAv.textContent="👥";hdAv.style.background="rgba(224,140,58,.15)";hdAv.style.color="var(--imp)";
+    if(g){
+      hdName.textContent=g.name;
+      hdSub.textContent=`${(g.members||[]).length} membros`;
+    }else{
+      // admin monitorando grupo do qual não participa
+      hdName.textContent="🔒 Monitorando grupo";
+      hdSub.textContent="Modo administrador — somente leitura";
+      document.getElementById("chatInp").disabled=true;
+      document.getElementById("chatInp").placeholder="Modo somente leitura";
+    }
+    unsubDM=onSnapshot(query(collection(db,"group_messages"),where("groupId","==",gid),orderBy("ts","asc")),snap=>{
+      const gMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderMsgList(mc,gMsgs,!g);
+      if(g)markAsRead(gMsgs,"group_messages");
+    },err=>{console.error("erro grupo:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
+    return;
+  }
+
   // private chat com um membro
   const other=members.find(m=>m.id===activeChat);
   if(!other)return;
@@ -1235,7 +1264,7 @@ function renderChat(){
     const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMsgList(mc,dmMsgs,false);
     markAsRead(dmMsgs);
-  },err=>{console.error("erro dm:",err);mc.innerHTML='<div class="empty">Erro ao carregar conversa. Verifique o console (F12) — pode faltar um índice no Firestore.</div>';});
+  },err=>{console.error("erro dm:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
 }
 
 function renderMsgList(container,list,readonly){
@@ -1258,11 +1287,12 @@ function renderMsgList(container,list,readonly){
   container.scrollTop=container.scrollHeight;
 }
 
-async function markAsRead(dmMsgs){
+async function markAsRead(dmMsgs,coll){
+  coll=coll||"dm_messages";
   for(const m of dmMsgs){
     const senderId=m.uid||m.from;
     if(senderId!==user.uid&&!(m.readBy||[]).includes(user.uid)){
-      try{await updateDoc(doc(db,"dm_messages",m.id),{readBy:[...(m.readBy||[]),user.uid]});}catch(e){}
+      try{await updateDoc(doc(db,coll,m.id),{readBy:[...(m.readBy||[]),user.uid]});}catch(e){}
     }
   }
 }
@@ -1278,6 +1308,27 @@ function renderMbrList(){
   geralEl.innerHTML=`<div class="m-av" style="background:var(--accent2)">DP</div><div class="m-name">Geral — Equipe</div>`;
   geralEl.addEventListener("click",()=>{activeChat="group";renderMbrList();renderChat();});
   ml.appendChild(geralEl);
+
+  // GRUPOS
+  const gdivider=document.createElement("div");
+  gdivider.style.cssText="display:flex;align-items:center;justify-content:space-between;padding:8px 8px 4px;";
+  gdivider.innerHTML=`<span class="chat-sb-divider" style="padding:0">Grupos</span><button id="btnNewGroup" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;font-size:.65rem;padding:2px 7px;">＋ Novo</button>`;
+  ml.appendChild(gdivider);
+  document.getElementById("btnNewGroup").addEventListener("click",openGroupModal);
+
+  if(!groups.length){
+    const emptyG=document.createElement("div");
+    emptyG.style.cssText="font-size:.65rem;color:var(--text3);padding:4px 8px 8px;";
+    emptyG.textContent="Nenhum grupo ainda.";
+    ml.appendChild(emptyG);
+  }
+  groups.forEach(g=>{
+    const d=document.createElement("div");
+    d.className=`member${activeChat==="customgroup:"+g.id?" active-chat":""}`;
+    d.innerHTML=`<div class="m-av" style="background:var(--imp)">👥</div><div style="flex:1;overflow:hidden"><div class="m-name">${esc(g.name)}</div><div class="m-role">${(g.members||[]).length} membros</div></div>`;
+    d.addEventListener("click",()=>{activeChat="customgroup:"+g.id;renderMbrList();renderChat();});
+    ml.appendChild(d);
+  });
 
   const divider=document.createElement("div");
   divider.className="chat-sb-divider";divider.textContent="Conversas privadas";
@@ -1298,7 +1349,63 @@ function renderMbrList(){
     mdivider.className="chat-sb-divider";mdivider.textContent="🔒 Admin — Monitorar";
     ml.appendChild(mdivider);
     renderMonitorList(ml);
+    renderMonitorGroups(ml);
   }
+}
+
+function openGroupModal(){
+  const others=members.filter(m=>m.id!==user?.uid);
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:380px">
+    <h2>Novo Grupo</h2>
+    <div class="fg full" style="margin-bottom:12px"><label>Nome do grupo</label><input type="text" id="grpName" placeholder="Ex: Equipe A"></div>
+    <div class="fg full"><label>Selecionar membros</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;max-height:220px;overflow-y:auto">
+        ${others.map(m=>`<label style="display:flex;align-items:center;gap:8px;background:var(--s3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;">
+          <input type="checkbox" value="${m.id}" style="width:15px;height:15px;accent-color:var(--accent);">
+          <div class="m-av" style="width:22px;height:22px;font-size:.6rem;background:${m.color}">${m.ini||"?"}</div>
+          <span style="font-size:.8rem;color:var(--text)">${esc(m.name)}</span>
+        </label>`).join("")}
+      </div>
+    </div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCancelGrp">Cancelar</button>
+      <button class="btn-save-m" id="btnCreateGrp">Criar grupo</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCancelGrp").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnCreateGrp").addEventListener("click",async()=>{
+    const name=ov.querySelector("#grpName").value.trim();
+    const checked=[...ov.querySelectorAll("input[type=checkbox]:checked")].map(c=>c.value);
+    if(!name){alert("Informe o nome do grupo.");return;}
+    if(!checked.length){alert("Selecione ao menos um membro.");return;}
+    try{
+      const docRef=await addDoc(collection(db,"group_chats"),{
+        name,members:[user.uid,...checked],createdBy:user.uid,createdAt:serverTimestamp()
+      });
+      ov.remove();
+      activeChat="customgroup:"+docRef.id;
+      renderMbrList();renderChat();
+    }catch(e){alert("Erro ao criar grupo: "+e.message);}
+  });
+}
+
+async function renderMonitorGroups(container){
+  try{
+    const snap=await getDocs(collection(db,"group_chats"));
+    snap.docs.forEach(docSnap=>{
+      const g=docSnap.data();
+      if((g.members||[]).includes(user.uid))return;
+      const item=document.createElement("div");
+      item.className="monitor-item";
+      item.innerHTML=`<i style="opacity:.6">👁</i><span>Grupo: ${esc(g.name)}</span>`;
+      item.addEventListener("click",()=>{activeChat="customgroup:"+docSnap.id;renderMbrList();renderChat();});
+      container.appendChild(item);
+    });
+  }catch(e){}
 }
 
 async function renderMonitorList(container){
@@ -1394,10 +1501,17 @@ async function addCmt(id,inp){
 async function sendMsg(){
   const inp=document.getElementById("chatInp");
   const text=inp.value.trim();if(!text)return;
-  if(activeChat.startsWith("monitor:"))return; // modo leitura para admin
+  if(activeChat.startsWith("monitor:"))return;
   try{
     if(activeChat==="group"){
       await addDoc(collection(db,"chat"),{uid:user.uid,name:user.displayName||user.email,text,ts:serverTimestamp()});
+    }else if(activeChat.startsWith("customgroup:")){
+      const gid=activeChat.slice(12);
+      const g=groups.find(x=>x.id===gid);
+      if(!g)return; // admin monitorando, não pode enviar
+      await addDoc(collection(db,"group_messages"),{
+        groupId:gid,members:g.members,from:user.uid,text,ts:serverTimestamp(),readBy:[user.uid]
+      });
     }else{
       const cid=convId(user.uid,activeChat);
       await addDoc(collection(db,"dm_messages"),{
