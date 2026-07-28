@@ -607,7 +607,7 @@ import {
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
-let activeChat="group"; // "group" ou uid do membro ou "customgroup:ID" ou "monitor:convId"
+let activeChat="group";
 let unsubDM=null;
 let presenceInterval=null;
 let groups=[];
@@ -624,12 +624,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const gp = new GoogleAuthProvider();
 
-// ── CLOUDINARY (upload gratuito de arquivos, sem cartão) ──
 const CLOUDINARY_CLOUD_NAME = "fqgrming";
 const CLOUDINARY_UPLOAD_PRESET = "dp_gestor_chat";
-const STORAGE_CAP_BYTES = 20*1024*1024*1024; // margem de segurança de 20GB
+const STORAGE_CAP_BYTES = 20*1024*1024*1024;
 
-// ── STATE ──
 let user=null, isAdmin=false, tasks=[], msgs=[], members=[], empresas=[];
 let empFilter="all", searchQ="", editId=null;
 let unsubT=null, unsubM=null, unsubMbr=null, unsubEmp=null, unsubPresence=null;
@@ -666,7 +664,6 @@ const THEMES = {
   coffee:  {bg:"#0e0906",s1:"#18120c",s2:"#221a10",s3:"#2c2216",border:"#3c2e20",border2:"#564030",text:"#f5ead8",text2:"#b09060",text3:"#705040",accent:"#c87840",accent2:"#a05828"},
 };
 
-// ── HELPERS ──
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function fmtD(s){if(!s)return"";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;}
@@ -696,7 +693,6 @@ function formatSize(bytes){
 function getEmp(id){return empresas.find(e=>e.id===id)||{id:"outro",label:"Outro",color:"#606078"};}
 function convId(a,b){return[a,b].sort().join("_");}
 
-// ── SONS DE NOTIFICAÇÃO (sintetizados, sem arquivos externos) ──
 let audioCtx=null;
 function getAudioCtx(){
   if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -728,38 +724,11 @@ function parseMentions(text){
   const found=[];
   members.forEach(m=>{
     if(m.id===user?.uid)return;
-    const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\function soundMessage(){playChime([{freq:880,start:0,dur:.15},{freq:1108,start:.08,dur:.18}]);}
-function soundMention(){playChime([{freq:784,start:0,dur:.2},{freq:988,start:.15,dur:.22},{freq:784,start:.32,dur:.2},{freq:988,start:.48,dur:.38}]);}
-function soundTaskCreated(){playChime([{freq:660,start:0,dur:.12},{freq:880,start:.1,dur:.2}]);}
-function soundTaskDone(){playChime([{freq:523,start:0,dur:.1},{freq:659,start:.09,dur:.1},{freq:784,start:.18,dur:.28}]);}
-function parseMentions(text){
-  const found=[];
-  members.forEach(m=>{
-    if(m.id===user?.uid)return;
-    const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\function soundMessage(){playChime([{freq:880,start:0,dur:.15},{freq:1108,start:.08,dur:.18}]);}
-function soundMention(){playChime([{freq:784,start:0,dur:.2},{freq:988,start:.15,dur:.22},{freq:784,start:.32,dur:.2},{freq:988,start:.48,dur:.38}]);}
-function soundTaskCreated(){playChime([{freq:660,start:0,dur:.12},{freq:880,start:.1,dur:.2}]);}
-function soundTaskDone(){playChime([{freq:523,start:0,dur:.1},{freq:659,start:.09,dur:.1},{freq:784,start:.18,dur:.28}]);}
-function parseMentions(text){
-  const found=[];
-  members.forEach(m=>{
-    if(m.id===user?.uid)return;
-    const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\function soundMessage(){playChime([{freq:880,start:0,dur:.15},{freq:1108,start:.08,dur:.18}]);}
-function soundTaskCreated(){playChime([{freq:660,start:0,dur:.12},{freq:880,start:.1,dur:.2}]);}
-function soundTaskDone(){playChime([{freq:523,start:0,dur:.1},{freq:659,start:.09,dur:.1},{freq:784,start:.18,dur:.28}]);}");
-    if(esc2&&new RegExp("@"+esc2,"i").test(text))found.push(m.id);
-  });
-  return found;
-}");
-    if(esc2&&new RegExp("@"+esc2,"i").test(text))found.push(m.id);
-  });
-  return found;
-}");
+    const esc2=m.name.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
     if(esc2&&new RegExp("@"+esc2,"i").test(text))found.push(m.id);
   });
   return found;
 }
-
 
 let sessionStartMs=Date.now();
 let firstTaskSnap=true;
@@ -803,8 +772,8 @@ function startNotificationListeners(){
   sessionStartMs=Date.now();
   let firstChat=true,firstDM=true,firstGroup=true;
   unsubBgChat=onSnapshot(collection(db,"chat"),snap=>{
-    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    unreadState.group=msgs.filter(m=>m.uid!==user.uid&&!(m.readBy||[]).includes(user.uid)).length;
+    const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
+    unreadState.group=msgs2.filter(m=>m.uid!==user.uid&&!(m.readBy||[]).includes(user.uid)).length;
     recomputeUnreadBadge();
     if(firstChat){firstChat=false;return;}
     snap.docChanges().forEach(ch=>{
@@ -817,9 +786,9 @@ function startNotificationListeners(){
     });
   });
   unsubBgDM=onSnapshot(query(collection(db,"dm_messages"),where("participants","array-contains",user.uid)),snap=>{
-    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     const byConv={};
-    msgs.forEach(m=>{
+    msgs2.forEach(m=>{
       if(m.from===user.uid||(m.readBy||[]).includes(user.uid))return;
       const other=(m.participants||[]).find(p=>p!==user.uid);
       if(other)byConv[other]=(byConv[other]||0)+1;
@@ -837,9 +806,9 @@ function startNotificationListeners(){
     });
   });
   unsubBgGroup=onSnapshot(query(collection(db,"group_messages"),where("members","array-contains",user.uid)),snap=>{
-    const msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     const byGroup={};
-    msgs.forEach(m=>{
+    msgs2.forEach(m=>{
       if(m.from===user.uid||(m.readBy||[]).includes(user.uid))return;
       byGroup[m.groupId]=(byGroup[m.groupId]||0)+1;
     });
@@ -988,13 +957,11 @@ function loadTheme(){
   Object.entries(s).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
 }
 
-// ── DATE ──
 const nd=new Date();
 const mn=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 document.getElementById("datePill").textContent=`${DAYS[nd.getDay()]}, ${nd.getDate()} de ${mn[nd.getMonth()]}`;
 document.getElementById("focusDate").textContent=`${DAYS[nd.getDay()]}, ${nd.getDate()} de ${mn[nd.getMonth()]} de ${nd.getFullYear()}`;
 
-// ── AUTH ──
 onAuthStateChanged(auth, async u=>{
   if(u){
     user=u; isAdmin=u.email===ADMIN_EMAIL;
@@ -1048,7 +1015,6 @@ async function ensureMember(u){
   }
 }
 
-// ── LOGIN BUTTONS (sem onclick no HTML) ──
 document.getElementById("btnEntrar").addEventListener("click", async()=>{
   const email=document.getElementById("le").value.trim();
   const pass=document.getElementById("lp").value;
@@ -1171,7 +1137,6 @@ document.getElementById("chatInp").addEventListener("input",function(){
 });
 document.getElementById("modalOv").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
 
-// senha forca
 document.getElementById("rp").addEventListener("input",function(){
   const p=this.value;
   const checks=[
@@ -1183,7 +1148,6 @@ document.getElementById("rp").addEventListener("input",function(){
   document.getElementById("sforca").innerHTML=checks.map(c=>`<span style="color:${c.ok?"var(--nor)":"var(--text3)"};margin-right:9px">${c.ok?"✓":"○"} ${c.txt}</span>`).join("");
 });
 
-// tabs
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.addEventListener("click",()=>{
     document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -1194,24 +1158,18 @@ document.querySelectorAll(".tab").forEach(btn=>{
   });
 });
 
-// temas
 document.querySelectorAll(".thbtn").forEach(btn=>{
   btn.addEventListener("click",async()=>{
     const t=THEMES[btn.dataset.theme];if(!t)return;
     Object.entries(t).forEach(([k,v])=>setV(`--${k}`,v));
     document.querySelectorAll(".thbtn").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
-    // salva nome do tema para restaurar o botão ativo ao reabrir
     if(user){
       try{await updateDoc(doc(db,"members",user.uid),{thm_current:btn.dataset.theme});}catch(e){}
     }
   });
 });
 
-// fix: await loadTheme ao entrar
-const _origOnAuth=onAuthStateChanged;
-
-// cores
 document.querySelectorAll(".cinp[data-var]").forEach(inp=>{
   inp.addEventListener("input",()=>setV(inp.dataset.var,inp.value));
 });
@@ -1242,9 +1200,7 @@ function showApp(){
   document.querySelectorAll(".admin-sec-opt").forEach(o=>o.style.display=isAdmin?"":"none");
 }
 
-// ── LISTENERS ──
 function startListeners(){
-  // Empresas
   empresas=[...DEF_EMPS];
   renderEmpFilters(); renderEmpConfig();
   const empRef=doc(db,"config","empresas");
@@ -1257,7 +1213,6 @@ function startListeners(){
       renderEmpFilters(); renderEmpConfig(); populateEmpSel(); renderAll();
     }
   });
-  // Tasks
   unsubT=onSnapshot(query(collection(db,"tasks"),orderBy("createdAt","desc")),snap=>{
     if(!firstTaskSnap){
       snap.docChanges().forEach(ch=>{
@@ -1275,26 +1230,21 @@ function startListeners(){
     tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;});
     purgeDone(); renderAll(); checkNotif();
   });
-  // Members
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
     members=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMbrList(); renderMbrConfig(); populateRespSel(); populateEmpSel();
   });
-  // Presence
   unsubPresence=onSnapshot(collection(db,"presence"),snap=>{
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
     renderMbrList();
   });
-  // Templates de tarefa
   unsubTemplates=onSnapshot(collection(db,"task_templates"),snap=>{
     templates=snap.docs.map(d=>({id:d.id,...d.data()}));
   });
-  // Log de atividades
   unsubActivity=onSnapshot(query(collection(db,"activity_log"),orderBy("ts","desc")),snap=>{
     activityLog=snap.docs.map(d=>({id:d.id,...d.data()})).filter(a=>isAdmin||!ADMIN_SECS.includes(a.sec));
     renderActivityLog();
   });
-  // Grupos — o usuário só recebe via listener os grupos que participa; admin busca todos à parte
   unsubGroups=onSnapshot(query(collection(db,"group_chats"),where("members","array-contains",user.uid)),snap=>{
     groups=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMbrList();
@@ -1330,7 +1280,6 @@ function checkNotif(){
   });
 }
 
-// ── EMPRESAS CRUD ──
 function renderEmpFilters(){
   const c=document.getElementById("empFilters");if(!c)return;
   const vis=empresas.filter(e=>isAdmin||!e.adminOnly);
@@ -1399,7 +1348,6 @@ function populateEmpSel(){
   if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
 }
 
-// ── RENDER ──
 function renderAll(){renderStats();renderLista();renderKanban();renderAgenda();renderPlanilha();renderDash();renderDone();}
 
 function visible(){
@@ -1624,7 +1572,9 @@ function renderActivityLog(){
     c.appendChild(div);
   });
 }
-function renderDone(){  const dl=document.getElementById("doneList");dl.innerHTML="";
+
+function renderDone(){
+  const dl=document.getElementById("doneList");dl.innerHTML="";
   const done=tasks.filter(t=>t.done&&(isAdmin||!ADMIN_SECS.includes(t.sec))).sort((a,b)=>{
     const ta=a.doneAt?.toDate?a.doneAt.toDate().getTime():a.doneAt||0;
     const tb=b.doneAt?.toDate?b.doneAt.toDate().getTime():b.doneAt||0;return tb-ta;});
@@ -1643,7 +1593,6 @@ function renderChat(){
   const hdName=document.querySelector(".chat-hd-name");
   const hdSub=document.querySelector(".chat-hd-sub");
   const mc=document.getElementById("chatMsgs");
-  const chatInpEl=document.getElementById("chatInp");
   if(!hdAv||!hdName||!hdSub||!mc)return;
 
   if(unsubDM){unsubDM();unsubDM=null;}
@@ -1663,9 +1612,8 @@ function renderChat(){
   if(activeChat.startsWith("monitor:")){
     const cid=activeChat.slice(8);
     const parts=cid.split("_");
-    const other=members.find(m=>parts.includes(m.id));
     hdAv.textContent="👁";hdAv.style.background="rgba(224,140,58,.15)";hdAv.style.color="var(--imp)";
-    const names=parts.map(uid=>members.find(m=>m.id===uid)?.name||"?").join(" e ");
+    const names=parts.map(uidv=>members.find(m=>m.id===uidv)?.name||"?").join(" e ");
     hdName.textContent="🔒 Monitorando: "+names;
     hdSub.textContent="Modo administrador — somente leitura";
     document.getElementById("chatInp").disabled=true;
@@ -1673,7 +1621,7 @@ function renderChat(){
     unsubDM=onSnapshot(query(collection(db,"dm_messages"),where("convId","==",cid),orderBy("ts","asc")),snap=>{
       const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,dmMsgs,true);
-    },err=>{console.error("erro monitor:",err);mc.innerHTML='<div class="empty">Erro ao carregar. Verifique o índice do Firestore no console (F12).</div>';});
+    },err=>{console.error("erro monitor:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
     return;
   }
   document.getElementById("chatInp").disabled=false;
@@ -1687,7 +1635,6 @@ function renderChat(){
       hdName.textContent=g.name;
       hdSub.textContent=`${(g.members||[]).length} membros`;
     }else{
-      // admin monitorando grupo do qual não participa
       hdName.textContent="🔒 Monitorando grupo";
       hdSub.textContent="Modo administrador — somente leitura";
       document.getElementById("chatInp").disabled=true;
@@ -1704,7 +1651,6 @@ function renderChat(){
     return;
   }
 
-  // private chat com um membro
   const other=members.find(m=>m.id===activeChat);
   if(!other)return;
   hdAv.textContent=other.ini||"?";hdAv.style.background=other.color+"30";hdAv.style.color=other.color;
@@ -1729,8 +1675,8 @@ function renderMsgList(container,list,readonly){
     const m=members.find(x=>x.id===senderId)||{name:msg.name||"?",color:"#888",ini:"?"};
     const isMentioned=(msg.mentions||[]).includes(user?.uid);
     const d=document.createElement("div");d.className=`msg${mine&&!readonly?" mine":""}${isMentioned?" mentioned":""}`;
-    const readers=(msg.readBy||[]).filter(uid=>uid!==senderId);
-    const readHtml=readers.length?`<div class="read-receipt"><div class="rr-avs">${readers.map(uid=>{const rm=members.find(x=>x.id===uid);return rm?`<div class="rr-av" style="background:${rm.color}" title="${esc(rm.name)}">${rm.ini||"?"}</div>`:"";}).join("")}</div><span>visto</span></div>`:"";
+    const readers=(msg.readBy||[]).filter(uidv=>uidv!==senderId);
+    const readHtml=readers.length?`<div class="read-receipt"><div class="rr-avs">${readers.map(uidv=>{const rm=members.find(x=>x.id===uidv);return rm?`<div class="rr-av" style="background:${rm.color}" title="${esc(rm.name)}">${rm.ini||"?"}</div>`:"";}).join("")}</div><span>visto</span></div>`:"";
     const canDelete=coll&&(isAdmin||(!readonly&&senderId===user?.uid));
 
     let contentHtml="";
@@ -1778,7 +1724,6 @@ function renderMbrList(){
   const others=members.filter(m=>m.id!==user?.uid);
   document.getElementById("mbrCnt").textContent=`· ${members.length}`;
 
-  // GERAL
   const geralEl=document.createElement("div");
   geralEl.className=`member${activeChat==="group"?" active-chat":""}`;
   const geralUnread=unreadState.group||0;
@@ -1786,7 +1731,6 @@ function renderMbrList(){
   geralEl.addEventListener("click",()=>{activeChat="group";renderMbrList();renderChat();});
   ml.appendChild(geralEl);
 
-  // GRUPOS
   const gdivider=document.createElement("div");
   gdivider.style.cssText="display:flex;align-items:center;justify-content:space-between;padding:8px 8px 4px;";
   gdivider.innerHTML=`<span class="chat-sb-divider" style="padding:0">Grupos</span><button id="btnNewGroup" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;font-size:.65rem;padding:2px 7px;">＋ Novo</button>`;
@@ -1896,8 +1840,8 @@ async function renderMonitorList(container){
       if(seen.has(data.convId))return;
       seen.add(data.convId);
       const parts=(data.participants||data.convId.split("_"));
-      if(parts.includes(user.uid))return; // já aparece na lista normal
-      const names=parts.map(uid=>members.find(m=>m.id===uid)?.name||"?").join(" ↔ ");
+      if(parts.includes(user.uid))return;
+      const names=parts.map(uidv=>members.find(m=>m.id===uidv)?.name||"?").join(" ↔ ");
       const item=document.createElement("div");
       item.className="monitor-item";
       item.innerHTML=`<i style="opacity:.6">👁</i><span>${esc(names)}</span>`;
@@ -1946,7 +1890,6 @@ function populateRespSel(){
   sel.value=cur;
 }
 
-// ── CRUD TAREFAS ──
 function nextRecurrenceDate(dateStr,type){
   const d=new Date((dateStr||today())+"T00:00:00");
   if(type==="daily")d.setDate(d.getDate()+1);
@@ -2018,7 +1961,6 @@ async function sendMsg(){
   }catch(e){}
 }
 
-// ── MODAL ──
 function openModal(id){
   editId=id||null;const t=id?tasks.find(t=>t.id===id):null;
   document.getElementById("modalTitle").textContent=t?"Editar Tarefa":"Nova Tarefa";
@@ -2058,7 +2000,6 @@ async function saveTask(){
   }catch(e){alert("Erro: "+e.message);}
 }
 
-// ── FOCUS ──
 function openFocus(){
   const tf=today();
   const ts=tasks.filter(t=>!t.done&&t.date===tf&&(isAdmin||!ADMIN_SECS.includes(t.sec)));
