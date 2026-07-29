@@ -1,0 +1,15 @@
+{
+  "name": "Central Dias - Gestão de Tarefas",
+  "short_name": "Central Dias",
+  "description": "Central de tarefas — Departamento Pessoal e Prestação de Contas — Dias Contabilidade",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080910",
+  "theme_color": "#1a1f36",
+  "orientation": "portrait-primary",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable"}
+  ]
+}
