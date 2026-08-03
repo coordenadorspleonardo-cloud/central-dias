@@ -749,7 +749,8 @@ let unsubActivity=null;
 async function logActivity(type,task){
   try{
     await addDoc(collection(db,"activity_log"),{
-      type,taskTit:task.tit,sec:task.sec,emp:task.emp,
+      type,taskId:task.id||null,taskTit:task.tit,sec:task.sec,emp:task.emp,
+      prio:task.prio||null,resp:task.resp||null,
       actorId:user.uid,actorName:user.displayName||user.email,ts:serverTimestamp()
     });
   }catch(e){}
@@ -2008,32 +2009,51 @@ async function saveTask(){
 
 function getExportData(filters){
   filters=filters||{};
-  let all=tasks.filter(t=>isAdmin||!ADMIN_SECS.includes(t.sec));
-  if(filters.emp&&filters.emp!=="all")all=all.filter(t=>t.emp===filters.emp);
-  if(filters.resp&&filters.resp!=="all")all=all.filter(t=>t.resp===filters.resp);
+  const liveTasks=tasks.filter(t=>isAdmin||!ADMIN_SECS.includes(t.sec));
+  let rows=liveTasks.map(t=>({
+    id:t.id,emp:t.emp,prio:t.prio,tit:t.tit,det:t.det||"",resp:t.resp||"",
+    date:t.date||"",sec:t.sec,done:!!t.done,doneAt:t.doneAt||null
+  }));
+
+  const existingIds=new Set(rows.map(r=>r.id));
+  const logCompleted=activityLog.filter(a=>a.type==="completed"&&(isAdmin||!ADMIN_SECS.includes(a.sec)));
+  logCompleted.forEach(a=>{
+    if(a.taskId&&existingIds.has(a.taskId))return;
+    rows.push({
+      id:a.taskId||("log_"+a.ts?.seconds+Math.random()),
+      emp:a.emp,prio:a.prio||"nor",tit:a.taskTit,det:"",resp:a.resp||"",
+      date:"",sec:a.sec,done:true,doneAt:a.ts
+    });
+  });
+
+  if(filters.emp&&filters.emp!=="all")rows=rows.filter(r=>r.emp===filters.emp);
+  if(filters.resp&&filters.resp!=="all")rows=rows.filter(r=>r.resp===filters.resp);
+  if(filters.prio&&filters.prio!=="all")rows=rows.filter(r=>r.prio===filters.prio);
   if(filters.dateFrom||filters.dateTo){
-    all=all.filter(t=>{
-      if(!t.date)return false;
-      const td=new Date(t.date+"T00:00:00");
-      if(filters.dateFrom&&td<filters.dateFrom)return false;
-      if(filters.dateTo&&td>filters.dateTo)return false;
+    rows=rows.filter(r=>{
+      const refDate=r.done&&r.doneAt?(r.doneAt?.toDate?r.doneAt.toDate():new Date(tsToMs(r.doneAt))):(r.date?new Date(r.date+"T00:00:00"):null);
+      if(!refDate)return false;
+      if(filters.dateFrom&&refDate<filters.dateFrom)return false;
+      if(filters.dateTo&&refDate>filters.dateTo)return false;
       return true;
     });
   }
-  return all.map(t=>{
-    const emp=getEmp(t.emp);
-    const resp=members.find(m=>m.id===t.resp);
+
+  return rows.map(r=>{
+    const emp=getEmp(r.emp);
+    const resp=members.find(m=>m.id===r.resp);
     return {
       Empresa:emp.label,
-      Prioridade:PRIOS[t.prio]?.l||t.prio,
-      Tarefa:t.tit,
-      Detalhes:t.det||"",
-      Responsavel:resp?resp.name:"",
-      Prazo:t.date?fmtD(t.date):"",
-      Secao:SECS[t.sec]||t.sec,
-      Status:t.done?"Concluída":"Pendente"
+      Prioridade:PRIOS[r.prio]?.l||r.prio||"—",
+      Tarefa:r.tit,
+      Detalhes:r.det,
+      Responsavel:resp?resp.name:"—",
+      Prazo:r.date?fmtD(r.date):"—",
+      Secao:SECS[r.sec]||r.sec,
+      Status:r.done?"✅ Concluída":"⏳ Pendente",
+      DataConclusao:r.done&&r.doneAt?fmtDT(r.doneAt):"—"
     };
-  });
+  }).sort((a,b)=>(a.Status<b.Status?1:-1));
 }
 function exportExcel(filters){
   const data=getExportData(filters);
@@ -2050,15 +2070,16 @@ function exportPDF(filters){
   const docPdf=new jsPDF({orientation:"landscape"});
   const empLabel=filters?.emp&&filters.emp!=="all"?getEmp(filters.emp).label:"Todas";
   const respLabel=filters?.resp&&filters.resp!=="all"?(members.find(m=>m.id===filters.resp)?.name||"—"):"Todos";
+  const prioLabel=filters?.prio&&filters.prio!=="all"?(PRIOS[filters.prio]?.l||filters.prio):"Todas";
   docPdf.setFontSize(14);
   docPdf.text("Relatório de Tarefas — DP Gestor",14,15);
   docPdf.setFontSize(9);
-  docPdf.text(`Gerado em ${fmtD(today())} · Empresa: ${empLabel} · Responsável: ${respLabel}`,14,21);
+  docPdf.text(`Gerado em ${fmtD(today())} · Empresa: ${empLabel} · Responsável: ${respLabel} · Prioridade: ${prioLabel}`,14,21);
   docPdf.autoTable({
     startY:26,
-    head:[["Empresa","Prioridade","Tarefa","Responsável","Prazo","Seção","Status"]],
-    body:data.map(d=>[d.Empresa,d.Prioridade,d.Tarefa,d.Responsavel,d.Prazo,d.Secao,d.Status]),
-    styles:{fontSize:8},
+    head:[["Empresa","Prioridade","Tarefa","Responsável","Prazo","Seção","Status","Concluída em"]],
+    body:data.map(d=>[d.Empresa,d.Prioridade,d.Tarefa,d.Responsavel,d.Prazo,d.Secao,d.Status,d.DataConclusao]),
+    styles:{fontSize:7.5},
     headStyles:{fillColor:[26,31,54]}
   });
   docPdf.save(`relatorio_dp_gestor_${today()}.pdf`);
@@ -2067,6 +2088,7 @@ function exportPDF(filters){
 function getFiltersFromModal(ov){
   const emp=ov.querySelector("#exp-emp").value;
   const resp=ov.querySelector("#exp-resp").value;
+  const prio=ov.querySelector("#exp-prio").value;
   const periodo=ov.querySelector("#exp-periodo").value;
   let dateFrom=null,dateTo=null;
   const now=new Date();
@@ -2080,7 +2102,7 @@ function getFiltersFromModal(ov){
     dateFrom=de?new Date(de+"T00:00:00"):null;
     dateTo=ate?new Date(ate+"T23:59:59"):null;
   }
-  return {emp,resp,dateFrom,dateTo};
+  return {emp,resp,prio,dateFrom,dateTo};
 }
 
 function openExportModal(){
@@ -2102,6 +2124,15 @@ function openExportModal(){
           ${members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}
         </select>
       </div>
+      <div class="fg full"><label>Prioridade / Urgência</label>
+        <select id="exp-prio">
+          <option value="all">Todas as prioridades</option>
+          <option value="urg">🔴 Urgente</option>
+          <option value="imp">🟠 Importante</option>
+          <option value="nor">🟢 Normal</option>
+          <option value="low">🔵 Baixa</option>
+        </select>
+      </div>
       <div class="fg full"><label>Período</label>
         <select id="exp-periodo">
           <option value="all">Todo o período</option>
@@ -2115,8 +2146,8 @@ function openExportModal(){
       <div class="fg" id="exp-de-wrap" style="display:none"><label>De</label><input type="date" id="exp-de"></div>
       <div class="fg" id="exp-ate-wrap" style="display:none"><label>Até</label><input type="date" id="exp-ate"></div>
     </div>
-    <div style="background:rgba(224,140,58,.08);border:1px solid rgba(224,140,58,.2);border-radius:8px;padding:9px 11px;font-size:.68rem;color:var(--imp);margin-top:10px;line-height:1.5">
-      ⚠️ Tarefas concluídas somem automaticamente após 30 dias. Para históricos mais antigos, consulte a aba 🕐 Histórico.
+    <div style="background:rgba(76,175,125,.08);border:1px solid rgba(76,175,125,.2);border-radius:8px;padding:9px 11px;font-size:.68rem;color:var(--nor);margin-top:10px;line-height:1.5">
+      ✅ Este relatório combina tarefas pendentes atuais com o histórico de conclusões (que nunca é apagado), mostrando data de conclusão para cada tarefa finalizada.
     </div>
     <div class="mf-row">
       <button class="btn-cancel" id="btnCloseExport">Cancelar</button>
