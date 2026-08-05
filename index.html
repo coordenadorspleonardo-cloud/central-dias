@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DP Gestor</title>
+<title>Central Dias</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1f36">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Central Dias">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -353,8 +360,8 @@ tr:hover td{background:var(--s3);}
   <div class="login-card">
     <div class="login-logo">
       <div style="font-size:1.8rem;margin-bottom:5px">📋</div>
-      <h1>DP Gestor</h1>
-      <p>Departamento Pessoal · Dias Contabilidade</p>
+      <h1>Central Dias</h1>
+      <p>Departamento Pessoal · Prestação de Contas</p>
     </div>
 
     <div id="fLogin">
@@ -458,7 +465,7 @@ tr:hover td{background:var(--s3);}
   <header>
     <div class="logo">
       <div class="logo-icon">📋</div>
-      <div><h1>DP Gestor</h1><p>Departamento Pessoal · Dias Contabilidade</p></div>
+      <div><h1>Central Dias</h1><p>Departamento Pessoal · Prestação de Contas</p></div>
     </div>
     <div class="hd-center">
       <div class="search-wrap"><input type="text" id="searchInp" placeholder="Buscar tarefas..."></div>
@@ -530,8 +537,8 @@ tr:hover td{background:var(--s3);}
         </div>
         <div class="chat-main">
           <div class="chat-hd">
-            <div class="chat-hd-av" style="background:rgba(200,169,110,.15);color:var(--accent)">DP</div>
-            <div><div class="chat-hd-name">Geral — Departamento Pessoal</div><div class="chat-hd-sub">Mensagens em tempo real</div></div>
+            <div class="chat-hd-av" style="background:rgba(200,169,110,.15);color:var(--accent)">CD</div>
+            <div><div class="chat-hd-name">Geral — Equipe Dias</div><div class="chat-hd-sub">Mensagens em tempo real</div></div>
           </div>
           <div class="chat-msgs" id="chatMsgs"></div>
           <div class="chat-inp-area" style="position:relative">
@@ -1605,8 +1612,8 @@ function renderChat(){
   if(unsubDM){unsubDM();unsubDM=null;}
 
   if(activeChat==="group"){
-    hdAv.textContent="DP";hdAv.style.background="rgba(200,169,110,.15)";hdAv.style.color="var(--accent)";
-    hdName.textContent="Geral — Departamento Pessoal";
+    hdAv.textContent="CD";hdAv.style.background="rgba(200,169,110,.15)";hdAv.style.color="var(--accent)";
+    hdName.textContent="Geral — Equipe Dias";
     hdSub.textContent="Mensagens em tempo real";
     unsubDM=onSnapshot(query(collection(db,"chat"),orderBy("ts","asc")),snap=>{
       msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -1734,7 +1741,7 @@ function renderMbrList(){
   const geralEl=document.createElement("div");
   geralEl.className=`member${activeChat==="group"?" active-chat":""}`;
   const geralUnread=unreadState.group||0;
-  geralEl.innerHTML=`<div class="m-av" style="background:var(--accent2)">DP</div><div class="m-name">Geral — Equipe</div>${geralUnread>0?`<span class="conv-badge">${geralUnread}</span>`:""}`;
+  geralEl.innerHTML=`<div class="m-av" style="background:var(--accent2)">CD</div><div class="m-name">Geral — Equipe</div>${geralUnread>0?`<span class="conv-badge">${geralUnread}</span>`:""}`;
   geralEl.addEventListener("click",()=>{activeChat="group";renderMbrList();renderChat();});
   ml.appendChild(geralEl);
 
@@ -2061,7 +2068,7 @@ function exportExcel(filters){
   const ws=window.XLSX.utils.json_to_sheet(data);
   const wb=window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb,ws,"Tarefas");
-  window.XLSX.writeFile(wb,`relatorio_dp_gestor_${today()}.xlsx`);
+  window.XLSX.writeFile(wb,`relatorio_central_dias_${today()}.xlsx`);
 }
 function exportPDF(filters){
   const data=getExportData(filters);
@@ -2072,7 +2079,7 @@ function exportPDF(filters){
   const respLabel=filters?.resp&&filters.resp!=="all"?(members.find(m=>m.id===filters.resp)?.name||"—"):"Todos";
   const prioLabel=filters?.prio&&filters.prio!=="all"?(PRIOS[filters.prio]?.l||filters.prio):"Todas";
   docPdf.setFontSize(14);
-  docPdf.text("Relatório de Tarefas — DP Gestor",14,15);
+  docPdf.text("Relatório de Tarefas — Central Dias",14,15);
   docPdf.setFontSize(9);
   docPdf.text(`Gerado em ${fmtD(today())} · Empresa: ${empLabel} · Responsável: ${respLabel} · Prioridade: ${prioLabel}`,14,21);
   docPdf.autoTable({
@@ -2082,7 +2089,7 @@ function exportPDF(filters){
     styles:{fontSize:7.5},
     headStyles:{fillColor:[26,31,54]}
   });
-  docPdf.save(`relatorio_dp_gestor_${today()}.pdf`);
+  docPdf.save(`relatorio_central_dias_${today()}.pdf`);
 }
 
 function getFiltersFromModal(ov){
@@ -2192,6 +2199,12 @@ function openFocus(){  const tf=today();
     });
   }
   document.getElementById("focusOv").classList.add("open");
+}
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
 }
 </script>
 </body>
