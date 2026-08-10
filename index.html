@@ -1494,32 +1494,32 @@ function soundOverdueAlert(){playChime([{freq:392,start:0,dur:.22},{freq:330,sta
 function soundCommentAdded(){playChime([{freq:440,start:0,dur:.1},{freq:554,start:.08,dur:.1},{freq:659,start:.16,dur:.22}]);}
 
 function getTaskDeadlineCategory(t){
-  if(t.done||!t.date||!user)return null;
-  if(!taskResps(t).includes(user.uid))return null;
-  if(!isAdmin&&isTaskAdminOnly(t))return null;
+  if(t.done||!t.date||!user)return{cat:null};
+  if(!taskResps(t).includes(user.uid))return{cat:null};
+  if(!isAdmin&&isTaskAdminOnly(t))return{cat:null};
   const b=dateBucketInfo(t.date);
-  if(b.order===-1)return"overdue";
+  if(b.order===-1)return{cat:"overdue"};
   if(b.order===0){
     if(t.hora){
       const[hh,mm]=t.hora.split(":").map(Number);
       const deadline=new Date();deadline.setHours(hh,mm,0,0);
       const diffMs=deadline-new Date();
-      if(diffMs<0)return"overdue"; // já passou do horário hoje
-      if(diffMs<=2*60*60*1000)return"critical"; // dentro de 2h do prazo
-      return null; // tem horário, mas ainda falta bastante — sem popup por enquanto
+      if(diffMs<0)return{cat:"overdue"}; // já passou do horário hoje
+      if(diffMs<=2*60*60*1000)return{cat:"critical",diffMs}; // dentro de 2h do prazo
+      return{cat:null}; // tem horário, mas ainda falta bastante — sem popup por enquanto
     }
-    return"today";
+    return{cat:"today"};
   }
-  if(b.order===1)return"tomorrow";
-  return null;
+  if(b.order===1)return{cat:"tomorrow"};
+  return{cat:null};
 }
 
 function getDeadlineAlerts(){
   const groups={overdue:[],critical:[],today:[],tomorrow:[]};
   if(!user)return groups;
   tasks.forEach(t=>{
-    const cat=getTaskDeadlineCategory(t);
-    if(cat)groups[cat].push(t);
+    const r=getTaskDeadlineCategory(t);
+    if(r.cat)groups[r.cat].push(r.cat==="critical"?{...t,_diffMs:r.diffMs}:t);
   });
   return groups;
 }
@@ -1536,19 +1536,26 @@ function pickAlertSound(groups){
   return soundDeadlineAlert;
 }
 
+function formatCountdown(ms){
+  const totalMin=Math.max(0,Math.round(ms/60000));
+  const h=Math.floor(totalMin/60);
+  const m=totalMin%60;
+  return`${h}:${String(m).padStart(2,"0")}`;
+}
+
 function renderDeadlinePopupList(groups){
   const list=document.getElementById("deadlinePopupList");if(!list)return;
-  const section=(items,label,colorVar)=>{
+  const section=(items,label,colorVar,critical)=>{
     if(!items.length)return"";
     return`<div style="font-size:.62rem;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
       items.map(t=>`<div class="deadline-item" data-id="${t.id}">
         <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(t.tit)}</div>
-        <div style="font-size:.66rem;color:${colorVar};margin-top:2px">${esc(dateBucketInfo(t.date).label)}${t.hora?" · 🕐"+esc(t.hora):""}</div>
+        <div style="font-size:.66rem;color:${colorVar};margin-top:2px">${critical?`Falta ${formatCountdown(t._diffMs)} para o prazo (${esc(t.hora)})`:esc(dateBucketInfo(t.date).label)+(t.hora?" · 🕐"+esc(t.hora):"")}</div>
       </div>`).join("");
   };
   list.innerHTML=
     section(groups.overdue,"⚠️ Atrasadas","var(--urg)")+
-    section(groups.critical,"⏰ Vencendo em até 2h","#ff8040")+
+    section(groups.critical,"⏰ Vencendo em até 2h","#ff8040",true)+
     section(groups.today,"📅 Hoje","var(--text2)")+
     section(groups.tomorrow,"🗓️ Amanhã","var(--text2)");
   list.querySelectorAll(".deadline-item").forEach(el=>{
@@ -2704,6 +2711,27 @@ function renderNotes(){
   sorted.forEach(n=>grid.appendChild(buildNoteCard(n)));
 }
 
+function wrapSelectionOrAll(bodyEl,savedRange,applyFn){
+  const sel=window.getSelection();
+  let range;
+  if(savedRange&&!savedRange.collapsed&&bodyEl.contains(savedRange.commonAncestorContainer)){
+    range=savedRange;
+  }else{
+    range=document.createRange();
+    range.selectNodeContents(bodyEl);
+  }
+  try{
+    const frag=range.extractContents();
+    const wrapper=applyFn();
+    wrapper.appendChild(frag);
+    range.insertNode(wrapper);
+    sel.removeAllRanges();
+    const after=document.createRange();
+    after.selectNodeContents(wrapper);
+    sel.addRange(after);
+  }catch(e){}
+}
+
 function buildNoteCard(n){
   const div=document.createElement("div");
   div.className=`note-card${n.pinned?" pinned":""}`;
@@ -2718,7 +2746,7 @@ function buildNoteCard(n){
       <button class="note-tool-btn" data-cmd="bold" title="Negrito"><b>N</b></button>
       <button class="note-tool-btn" data-cmd="italic" title="Itálico"><i>I</i></button>
       <button class="note-tool-btn" data-cmd="underline" title="Sublinhado"><u>S</u></button>
-      <span style="display:flex;align-items:center;gap:3px;font-size:.65rem;color:var(--text2)">🖌️<input type="color" class="note-color-inp" data-textcolor="1" value="#c8a96e" title="Cor do texto selecionado"></span>
+      <span style="display:flex;align-items:center;gap:3px;font-size:.65rem;color:var(--text2)">🖌️<input type="color" class="note-color-inp" data-textcolor="1" value="#c8a96e" title="Selecione um texto e escolha uma cor (ou sem seleção, colore tudo)"></span>
     </div>
     <div class="note-body" contenteditable="true">${n.content||""}</div>
     <div class="note-footer">Atualizado ${n.updatedAt?fmtDT(n.updatedAt):""}</div>`;
@@ -2744,25 +2772,19 @@ function buildNoteCard(n){
   textColorInp.addEventListener("mousedown",()=>saveSelection());
   textColorInp.addEventListener("input",()=>{
     bodyEl.focus();
-    const sel=window.getSelection();
-    if(savedRange&&!savedRange.collapsed){
-      sel.removeAllRanges();
-      sel.addRange(savedRange);
-    }else{
-      // nada selecionado: aplica a cor a todo o texto da nota
-      const range=document.createRange();
-      range.selectNodeContents(bodyEl);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-    try{document.execCommand("foreColor",false,textColorInp.value);}catch(e){}
+    wrapSelectionOrAll(bodyEl,savedRange,()=>{
+      const span=document.createElement("span");
+      span.style.color=textColorInp.value;
+      return span;
+    });
     saveNote(n.id,{content:bodyEl.innerHTML});
   });
   div.querySelectorAll(".note-tool-btn").forEach(btn=>{
-    btn.addEventListener("mousedown",e=>e.preventDefault()); // impede o botão de tirar o foco/seleção do texto
+    btn.addEventListener("mousedown",()=>saveSelection());
     btn.addEventListener("click",()=>{
       bodyEl.focus();
-      try{document.execCommand(btn.dataset.cmd,false,null);}catch(e){}
+      const tag=btn.dataset.cmd==="bold"?"b":btn.dataset.cmd==="italic"?"i":"u";
+      wrapSelectionOrAll(bodyEl,savedRange,()=>document.createElement(tag));
       saveNote(n.id,{content:bodyEl.innerHTML});
     });
   });
