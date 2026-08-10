@@ -147,7 +147,8 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .note-tool-btn{background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:.68rem;padding:3px 9px;font-weight:700;min-width:24px;}
 .note-tool-btn:hover{color:var(--text);}
 .note-color-inp{width:22px;height:22px;border:none;border-radius:5px;cursor:pointer;padding:0;background:none;flex-shrink:0;}
-.note-body{min-height:110px;outline:none;font-size:.8rem;line-height:1.65;border-radius:8px;padding:8px;background:var(--s3);border:1px solid var(--border);}
+.note-body{min-height:110px;outline:none;font-size:.8rem;line-height:1.65;border-radius:8px;padding:8px;background:var(--s3);border:1px solid var(--border);resize:vertical;overflow-y:auto;}
+.note-card{resize:horizontal;overflow:auto;max-width:100%;}
 .note-body:focus{border-color:var(--accent2);}
 .note-footer{font-size:.6rem;color:var(--text3);text-align:right;}
 
@@ -173,7 +174,9 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .resp-avatar{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.5rem;font-weight:700;flex-shrink:0;color:#fff;}
 .t-comments{margin-top:7px;border-top:1px solid var(--border);padding-top:7px;display:none;}
 .t-comments.open{display:block;}
-.cmt-item{font-size:.7rem;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:5px;}
+.cmt-item{font-size:.7rem;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:5px;align-items:center;}
+.cmt-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.68rem;flex-shrink:0;padding:0 2px;}
+.cmt-del:hover{color:var(--urg);}
 .cmt-item:last-child{border-bottom:none;}
 .cmt-who{font-weight:600;color:var(--text);flex-shrink:0;}
 .cmt-time{color:var(--text3);font-size:.61rem;margin-left:auto;flex-shrink:0;}
@@ -551,7 +554,7 @@ tr:hover td{background:var(--s3);}
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="lista">📋 Lista</button>
+    <button class="tab active" data-tab="lista">📋 Lista <span class="tbadge" id="listaTabBadge" style="display:none;background:var(--accent);color:#0f0f13"></span></button>
     <button class="tab" data-tab="kanban">🚦 Prioridade</button>
     <button class="tab" data-tab="agenda">📅 Agenda</button>
     <button class="tab" data-tab="planilha">📊 Planilha</button>
@@ -886,6 +889,7 @@ let sessionStartMs=Date.now();
 let firstTaskSnap=true;
 let unsubBgChat=null,unsubBgDM=null,unsubBgGroup=null;
 let prevTasksDone={};
+let prevTasksCmtCount={};
 let unreadState={group:0,dms:{},groups:{}};
 let templates=[];
 let unsubTemplates=null;
@@ -1393,13 +1397,23 @@ function startListeners(){
         }else if(ch.type==="modified"){
           const d=ch.doc.data();
           if(d.done&&prevTasksDone[ch.doc.id]===false)soundTaskDone();
+          const newCmtCount=(d.cmts||[]).length;
+          const oldCmtCount=prevTasksCmtCount[ch.doc.id]??newCmtCount;
+          if(newCmtCount>oldCmtCount){
+            const lastCmt=d.cmts[d.cmts.length-1];
+            if(lastCmt&&lastCmt.who!==(user.displayName||user.email)){
+              soundCommentAdded();
+              showBrowserNotification("💬 Novo comentário em: "+(d.tit||""),(lastCmt.who||"")+": "+(lastCmt.text||"").slice(0,80));
+            }
+          }
         }
       });
     }
     firstTaskSnap=false;
     tasks=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>isAdmin||!isTaskAdminOnly(t));
     prevTasksDone={};
-    tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;});
+    prevTasksCmtCount={};
+    tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;prevTasksCmtCount[t.id]=(t.cmts||[]).length;});
     purgeDone(); renderAll(); checkNotif(); updateDeadlinePopup();
   });
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
@@ -1468,6 +1482,7 @@ let deadlinePopupVisible=false;
 let deadlineCheckInterval=null;
 
 function soundDeadlineAlert(){playChime([{freq:740,start:0,dur:.18},{freq:932,start:.14,dur:.18},{freq:740,start:.3,dur:.26}]);}
+function soundCommentAdded(){playChime([{freq:440,start:0,dur:.1},{freq:554,start:.08,dur:.1},{freq:659,start:.16,dur:.22}]);}
 
 function getDeadlineAlerts(){
   if(!user)return[];
@@ -1740,6 +1755,11 @@ function renderLista(){
     else label=`📋 ${visTasks.length} tarefa${visTasks.length!==1?"s":""} pendente${visTasks.length!==1?"s":""} de ${esc(members.find(m=>m.id===respFilter)?.name||"")} em ${esc(getEmp(empFilter).label)}`;
     badge.textContent=label;
   }
+  const tabBadge=document.getElementById("listaTabBadge");
+  if(tabBadge){
+    if(visTasks.length>0){tabBadge.style.display="inline-flex";tabBadge.textContent=visTasks.length;}
+    else tabBadge.style.display="none";
+  }
   const visEmpresas=empresas.filter(e=>isAdmin||!e.adminOnly);
   let anyRendered=false;
   visEmpresas.forEach(emp=>{
@@ -1806,7 +1826,7 @@ function buildCard(t){
         ${isAdmin?`<select class="psel"><option value="urg"${t.prio==="urg"?" selected":""}>Urgente</option><option value="imp"${t.prio==="imp"?" selected":""}>Importante</option><option value="nor"${t.prio==="nor"?" selected":""}>Normal</option><option value="low"${t.prio==="low"?" selected":""}>Baixa</option></select>`:""}
       </div>
       <div class="t-comments" id="cmt-${t.id}">
-        <div>${(t.cmts||[]).map(cc=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span></div>`).join("")}</div>
+        <div>${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canEdit?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")}</div>
         <div class="cmt-input-row"><input class="cmt-input" placeholder="Comentar... (Enter)"><button class="cmt-send">↑</button></div>
       </div>
     </div>
@@ -1839,6 +1859,9 @@ function buildCard(t){
   div.querySelector(".cmt-badge")?.addEventListener("click",()=>{
     const el=document.getElementById("cmt-"+t.id);el.classList.toggle("open");
     if(el.classList.contains("open"))el.querySelector(".cmt-input")?.focus();
+  });
+  div.querySelectorAll(".cmt-del").forEach(btn=>{
+    btn.addEventListener("click",e=>{e.stopPropagation();deleteComment(t.id,+btn.dataset.cidx);});
   });
   div.querySelector(".bi.edit")?.addEventListener("click",()=>openModal(t.id));
   div.querySelector(".bi.del")?.addEventListener("click",()=>delTask(t.id));
@@ -2458,6 +2481,14 @@ async function addCmt(id,inp){
   try{await updateDoc(doc(db,"tasks",id),{cmts});inp.value="";}catch(e){}
 }
 
+async function deleteComment(taskId,idx){
+  const t=tasks.find(x=>x.id===taskId);if(!t)return;
+  if(!(isAdmin||t.createdBy===user?.uid))return;
+  if(!confirm("Excluir este comentário?"))return;
+  const cmts=(t.cmts||[]).filter((_,i)=>i!==idx);
+  try{await updateDoc(doc(db,"tasks",taskId),{cmts});}catch(e){}
+}
+
 async function sendMsg(){
   const inp=document.getElementById("chatInp");
   const text=inp.value.trim();if(!text)return;
@@ -2507,7 +2538,7 @@ function openPreview(id){
     </div>
     <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">
       <div style="font-size:.68rem;color:var(--text2);font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">💬 Comentários</div>
-      <div id="previewCmts">${(t.cmts||[]).map(cc=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span></div>`).join("")||'<div style="font-size:.72rem;color:var(--text3)" id="previewCmtsEmpty">Nenhum comentário ainda.</div>'}</div>
+      <div id="previewCmts">${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canEdit?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")||'<div style="font-size:.72rem;color:var(--text3)" id="previewCmtsEmpty">Nenhum comentário ainda.</div>'}</div>
       <div class="cmt-input-row" style="margin-top:7px"><input class="cmt-input" id="previewCmtInp" placeholder="Comentar... (Enter)"><button class="cmt-send" id="previewCmtSend">↑</button></div>
     </div>
     <div class="mf-row">
@@ -2532,6 +2563,13 @@ function openPreview(id){
   };
   cmtSend.addEventListener("click",doSend);
   cmtInp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();doSend();}});
+  ov.querySelectorAll(".cmt-del").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      await deleteComment(t.id,+btn.dataset.cidx);
+      ov.remove();
+      openPreview(t.id);
+    });
+  });
 }
 
 function openModal(id){
@@ -2610,7 +2648,7 @@ function buildNoteCard(n){
       <button class="note-tool-btn" data-cmd="bold" title="Negrito"><b>N</b></button>
       <button class="note-tool-btn" data-cmd="italic" title="Itálico"><i>I</i></button>
       <button class="note-tool-btn" data-cmd="underline" title="Sublinhado"><u>S</u></button>
-      <input type="color" class="note-color-inp" data-textcolor="1" value="#eeeef5" title="Cor do texto selecionado">
+      <span style="display:flex;align-items:center;gap:3px;font-size:.65rem;color:var(--text2)">🖌️<input type="color" class="note-color-inp" data-textcolor="1" value="#c8a96e" title="Cor do texto selecionado"></span>
     </div>
     <div class="note-body" contenteditable="true">${n.content||""}</div>
     <div class="note-footer">Atualizado ${n.updatedAt?fmtDT(n.updatedAt):""}</div>`;
@@ -2619,6 +2657,13 @@ function buildNoteCard(n){
   const bodyEl=div.querySelector(".note-body");
   const titleColorInp=div.querySelector('input[type=color]:not([data-textcolor])');
   const textColorInp=div.querySelector('input[data-textcolor]');
+  let savedRange=null;
+  const saveSelection=()=>{
+    const sel=window.getSelection();
+    if(sel.rangeCount>0&&bodyEl.contains(sel.anchorNode))savedRange=sel.getRangeAt(0).cloneRange();
+  };
+  bodyEl.addEventListener("mouseup",saveSelection);
+  bodyEl.addEventListener("keyup",saveSelection);
 
   titleEl.addEventListener("blur",()=>saveNote(n.id,{title:titleEl.textContent.trim()||"Sem título"}));
   bodyEl.addEventListener("blur",()=>saveNote(n.id,{content:bodyEl.innerHTML}));
@@ -2626,12 +2671,19 @@ function buildNoteCard(n){
     titleEl.style.color=titleColorInp.value;
     saveNote(n.id,{titleColor:titleColorInp.value});
   });
+  textColorInp.addEventListener("mousedown",()=>saveSelection());
   textColorInp.addEventListener("input",()=>{
     bodyEl.focus();
+    if(savedRange){
+      const sel=window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
     try{document.execCommand("foreColor",false,textColorInp.value);}catch(e){}
     saveNote(n.id,{content:bodyEl.innerHTML});
   });
   div.querySelectorAll(".note-tool-btn").forEach(btn=>{
+    btn.addEventListener("mousedown",e=>e.preventDefault()); // impede o botão de tirar o foco/seleção do texto
     btn.addEventListener("click",()=>{
       bodyEl.focus();
       try{document.execCommand(btn.dataset.cmd,false,null);}catch(e){}
