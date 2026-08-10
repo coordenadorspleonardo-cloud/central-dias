@@ -130,6 +130,31 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .t-detail:focus{background:var(--s3);outline:1.5px solid var(--accent2);}
 .t-meta{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;align-items:center;}
 .tag{padding:2px 8px;border-radius:8px;font-size:.62rem;font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap;}
+.cmt-badge{background:rgba(59,156,224,.18);color:#3b9ce0;border:1px solid rgba(59,156,224,.35);animation:cmtPulse 2.2s ease-in-out infinite;cursor:pointer;}
+@keyframes cmtPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,156,224,.3);}50%{box-shadow:0 0 0 4px rgba(59,156,224,.08);}}
+
+/* NOTAS */
+.note-card{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+.note-card.pinned{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;}
+.note-hd{display:flex;align-items:flex-start;gap:6px;}
+.note-title{flex:1;font-size:.92rem;font-weight:700;outline:none;border-radius:4px;padding:2px 4px;margin:-2px -4px;min-width:0;word-break:break-word;}
+.note-title:focus{background:var(--s3);}
+.note-pin{background:none;border:none;cursor:pointer;font-size:.9rem;flex-shrink:0;opacity:.55;}
+.note-pin.on{opacity:1;}
+.note-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.75rem;flex-shrink:0;}
+.note-del:hover{color:var(--urg);}
+.note-toolbar{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.note-tool-btn{background:var(--s3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:.68rem;padding:3px 9px;font-weight:700;min-width:24px;}
+.note-tool-btn:hover{color:var(--text);}
+.note-color-inp{width:22px;height:22px;border:none;border-radius:5px;cursor:pointer;padding:0;background:none;flex-shrink:0;}
+.note-body{min-height:110px;outline:none;font-size:.8rem;line-height:1.65;border-radius:8px;padding:8px;background:var(--s3);border:1px solid var(--border);}
+.note-body:focus{border-color:var(--accent2);}
+.note-footer{font-size:.6rem;color:var(--text3);text-align:right;}
+
+/* POPUP DE PRAZO */
+.deadline-item{padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:3px;}
+.deadline-item:hover{background:var(--s3);}
+
 .turg{background:rgba(224,92,92,.16);color:#ff8a8a;}
 .timp{background:rgba(224,140,58,.16);color:#ffb060;}
 .tnor{background:rgba(76,175,125,.16);color:#5fdb9c;}
@@ -364,6 +389,14 @@ tr:hover td{background:var(--s3);}
 
 <div id="notifBanner"><span></span><button onclick="document.getElementById('notifBanner').style.display='none'">✕</button></div>
 
+<div id="deadlinePopup" style="display:none;position:fixed;bottom:20px;right:20px;z-index:500;width:300px;max-width:calc(100vw - 24px);background:var(--s2);border:1px solid var(--urg);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
+  <div style="background:rgba(224,92,92,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <span style="font-size:.78rem;font-weight:700;color:var(--urg)">⏰ Prazos se aproximando (<span id="deadlinePopupCount">0</span>)</span>
+    <button id="btnCloseDeadlinePopup" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
+  </div>
+  <div id="deadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
+</div>
+
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
@@ -524,14 +557,18 @@ tr:hover td{background:var(--s3);}
     <button class="tab" data-tab="planilha">📊 Planilha</button>
     <button class="tab" data-tab="dash">📈 Dashboard</button>
     <button class="tab" data-tab="historico">📜 Histórico</button>
-    <button class="tab" data-tab="concluidas">✅ Concluídas <span class="tbadge g" id="dcnt">0</span></button>
+    <button class="tab" data-tab="concluidas">✅ Concluídas</button>
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--accent2)"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
+    <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Tema</button>
   </div>
 
   <div class="content">
-    <div class="view active" id="view-lista"><div id="lista-secs"></div></div>
+    <div class="view active" id="view-lista">
+      <div id="listaTotalBadge" style="font-size:.72rem;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;"></div>
+      <div id="lista-secs"></div>
+    </div>
     <div class="view" id="view-kanban"><div class="kanban-grid" id="kgrid"></div></div>
     <div class="view" id="view-agenda"><div class="tl" id="agTl"></div></div>
     <div class="view" id="view-planilha">
@@ -546,7 +583,7 @@ tr:hover td{background:var(--s3);}
     <div class="view" id="view-dash"><div class="dash-grid" id="dashKpis"></div><div class="chart-row" id="dashCharts"></div></div>
     <div class="view" id="view-historico"><div id="activityLogList"></div></div>
     <div class="view" id="view-concluidas">
-      <div style="background:rgba(76,175,125,.07);border:1px solid rgba(76,175,125,.15);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:.74rem;color:var(--nor);">✅ Tarefas ficam aqui por <strong>30 dias</strong> e são removidas automaticamente.</div>
+      <div style="background:rgba(76,175,125,.07);border:1px solid rgba(76,175,125,.15);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:.74rem;color:var(--nor);">✅ Tarefas ficam aqui por <strong>30 dias</strong> e são removidas automaticamente. <strong id="doneCountTxt"></strong></div>
       <div id="doneList"></div>
     </div>
     <div class="view" id="view-acompanhamento">
@@ -585,6 +622,13 @@ tr:hover td{background:var(--s3);}
           </div>
         </div>
       </div>
+    </div>
+    <div class="view" id="view-notas">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <p style="font-size:.72rem;color:var(--text2)">📝 Suas anotações pessoais — só você vê e edita as suas.</p>
+        <button id="btnNewNote" class="btn-save-m">📝 Nova Anotação</button>
+      </div>
+      <div id="notesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;"></div>
     </div>
     <div class="view" id="view-config">
       <div class="settings-grid">
@@ -1080,10 +1124,11 @@ onAuthStateChanged(auth, async u=>{
   if(u){
     user=u; isAdmin=u.email===ADMIN_EMAIL;
     await ensureMember(u);
-    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission();
+    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks();
   } else {
     stopPresence();
     stopNotificationListeners();
+    stopDeadlineChecks();
     user=null; isAdmin=false;
     stopListeners(); showLogin();
   }
@@ -1355,7 +1400,7 @@ function startListeners(){
     tasks=snap.docs.map(d=>({id:d.id,...d.data()})).filter(t=>isAdmin||!isTaskAdminOnly(t));
     prevTasksDone={};
     tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;});
-    purgeDone(); renderAll(); checkNotif();
+    purgeDone(); renderAll(); checkNotif(); updateDeadlinePopup();
   });
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
     members=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
@@ -1382,8 +1427,12 @@ function startListeners(){
     notifEmails=snap.exists()?(snap.data().list||[]):[];
     renderNotifEmailsConfig();
   });
+  unsubNotes=onSnapshot(query(collection(db,"notes"),where("ownerId","==",user.uid)),snap=>{
+    notes=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderNotes();
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -1412,6 +1461,74 @@ function checkNotif(){
     }
   });
 }
+
+// ── POP-UP DE PRAZO SE APROXIMANDO ──
+let deadlineSnoozedUntil=0;
+let deadlinePopupVisible=false;
+let deadlineCheckInterval=null;
+
+function soundDeadlineAlert(){playChime([{freq:740,start:0,dur:.18},{freq:932,start:.14,dur:.18},{freq:740,start:.3,dur:.26}]);}
+
+function getDeadlineAlerts(){
+  if(!user)return[];
+  return tasks.filter(t=>{
+    if(t.done)return false;
+    if(!taskResps(t).includes(user.uid))return false;
+    if(!isAdmin&&isTaskAdminOnly(t))return false;
+    if(!t.date)return false;
+    return dateBucketInfo(t.date).order<=1; // atrasada, hoje ou amanhã
+  }).sort((a,b)=>dateBucketInfo(a.date).order-dateBucketInfo(b.date).order);
+}
+
+function renderDeadlinePopupList(alerts){
+  const list=document.getElementById("deadlinePopupList");if(!list)return;
+  list.innerHTML=alerts.map(t=>{
+    const b=dateBucketInfo(t.date);
+    return`<div class="deadline-item" data-id="${t.id}">
+      <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(t.tit)}</div>
+      <div style="font-size:.66rem;color:${b.order<0?"var(--urg)":"var(--text2)"};margin-top:2px">${esc(b.label)}${t.hora?" · 🕐"+esc(t.hora):""}</div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".deadline-item").forEach(el=>{
+    el.addEventListener("click",()=>openPreview(el.dataset.id));
+  });
+}
+
+function updateDeadlinePopup(){
+  const popup=document.getElementById("deadlinePopup");if(!popup)return;
+  const alerts=getDeadlineAlerts();
+  if(!alerts.length){
+    popup.style.display="none";
+    deadlinePopupVisible=false;
+    return;
+  }
+  renderDeadlinePopupList(alerts);
+  const countEl=document.getElementById("deadlinePopupCount");
+  if(countEl)countEl.textContent=alerts.length;
+  if(Date.now()>=deadlineSnoozedUntil&&!deadlinePopupVisible){
+    popup.style.display="block";
+    deadlinePopupVisible=true;
+    soundDeadlineAlert();
+  }
+}
+
+function startDeadlineChecks(){
+  updateDeadlinePopup();
+  deadlineCheckInterval=setInterval(updateDeadlinePopup,60*1000);
+}
+function stopDeadlineChecks(){
+  clearInterval(deadlineCheckInterval);
+  deadlineCheckInterval=null;
+  deadlineSnoozedUntil=0;
+  deadlinePopupVisible=false;
+  const popup=document.getElementById("deadlinePopup");
+  if(popup)popup.style.display="none";
+}
+document.getElementById("btnCloseDeadlinePopup")?.addEventListener("click",()=>{
+  document.getElementById("deadlinePopup").style.display="none";
+  deadlinePopupVisible=false;
+  deadlineSnoozedUntil=Date.now()+15*60*1000; // volta a aparecer em 15 min, se ainda houver prazo pendente
+});
 
 function renderEmpFilters(){
   const c=document.getElementById("empFilters");if(!c)return;
@@ -1589,7 +1706,6 @@ function renderStats(){
   document.getElementById("pFill").style.width=pct+"%";
   document.getElementById("pPct").textContent=pct+"%";
   document.getElementById("pCnt").textContent=`${done}/${total}`;
-  document.getElementById("dcnt").textContent=done;
 }
 
 function dateBucketInfo(dateStr){
@@ -1615,6 +1731,15 @@ function dateBucketInfo(dateStr){
 function renderLista(){
   const c=document.getElementById("lista-secs");c.innerHTML="";
   const visTasks=visible();
+  const badge=document.getElementById("listaTotalBadge");
+  if(badge){
+    let label="";
+    if(empFilter==="all"&&respFilter==="all")label=`📋 ${visTasks.length} tarefa${visTasks.length!==1?"s":""} pendente${visTasks.length!==1?"s":""} no total`;
+    else if(empFilter!=="all"&&respFilter==="all")label=`📋 ${visTasks.length} tarefa${visTasks.length!==1?"s":""} pendente${visTasks.length!==1?"s":""} em ${esc(getEmp(empFilter).label)}`;
+    else if(empFilter==="all"&&respFilter!=="all")label=`📋 ${visTasks.length} tarefa${visTasks.length!==1?"s":""} pendente${visTasks.length!==1?"s":""} de ${esc(members.find(m=>m.id===respFilter)?.name||"")}`;
+    else label=`📋 ${visTasks.length} tarefa${visTasks.length!==1?"s":""} pendente${visTasks.length!==1?"s":""} de ${esc(members.find(m=>m.id===respFilter)?.name||"")} em ${esc(getEmp(empFilter).label)}`;
+    badge.textContent=label;
+  }
   const visEmpresas=empresas.filter(e=>isAdmin||!e.adminOnly);
   let anyRendered=false;
   visEmpresas.forEach(emp=>{
@@ -1675,6 +1800,7 @@ function buildCard(t){
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="background:${resp.color}">${resp.ini||"?"}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
+        ${cmts>0?`<span class="tag cmt-badge">💬 ${cmts} coment${cmts!==1?"ários":"ário"}</span>`:""}
         <div class="t-date-w">📅<input type="date" value="${t.date||""}" ${!canEdit?"disabled":""}></div>
         <div class="t-date-w">🕐<input type="time" value="${t.hora||""}" ${!canEdit?"disabled":""}></div>
         ${isAdmin?`<select class="psel"><option value="urg"${t.prio==="urg"?" selected":""}>Urgente</option><option value="imp"${t.prio==="imp"?" selected":""}>Importante</option><option value="nor"${t.prio==="nor"?" selected":""}>Normal</option><option value="low"${t.prio==="low"?" selected":""}>Baixa</option></select>`:""}
@@ -1690,7 +1816,7 @@ function buildCard(t){
     </div>`;
 
   div.addEventListener("click",e=>{
-    if(e.target.closest("input,select,button,.chk,.cmt-input-row,.t-comments"))return;
+    if(e.target.closest("input,select,button,.chk,.cmt-input-row,.t-comments,.cmt-badge"))return;
     openPreview(t.id);
   });
 
@@ -1707,6 +1833,10 @@ function buildCard(t){
   }
 
   div.querySelector(".bi.cmt")?.addEventListener("click",()=>{
+    const el=document.getElementById("cmt-"+t.id);el.classList.toggle("open");
+    if(el.classList.contains("open"))el.querySelector(".cmt-input")?.focus();
+  });
+  div.querySelector(".cmt-badge")?.addEventListener("click",()=>{
     const el=document.getElementById("cmt-"+t.id);el.classList.toggle("open");
     if(el.classList.contains("open"))el.querySelector(".cmt-input")?.focus();
   });
@@ -1858,6 +1988,8 @@ function renderDone(){
   const done=tasks.filter(t=>t.done&&(isAdmin||!isTaskAdminOnly(t))).sort((a,b)=>{
     const ta=a.doneAt?.toDate?a.doneAt.toDate().getTime():a.doneAt||0;
     const tb=b.doneAt?.toDate?b.doneAt.toDate().getTime():b.doneAt||0;return tb-ta;});
+  const countTxt=document.getElementById("doneCountTxt");
+  if(countTxt)countTxt.textContent=`(${done.length} no total)`;
   if(!done.length){dl.innerHTML='<div class="empty">Nenhuma tarefa concluída.</div>';return;}
   done.forEach(t=>{
     const empLabels=taskEmps(t).map(id=>getEmp(id).label).join(", ")||"—";
@@ -2450,6 +2582,83 @@ async function saveTask(){
 }
 
 // ── E-MAIL DE TAREFA CRIADA (via EmailJS, para os e-mails cadastrados pelo Admin) ──
+let notes=[];
+let unsubNotes=null;
+
+function renderNotes(){
+  const grid=document.getElementById("notesGrid");if(!grid)return;
+  const sorted=[...notes].sort((a,b)=>{
+    if(!!b.pinned-!!a.pinned!==0)return(b.pinned?1:0)-(a.pinned?1:0);
+    return(tsToMs(b.updatedAt)||0)-(tsToMs(a.updatedAt)||0);
+  });
+  if(!sorted.length){grid.innerHTML='<div class="empty">Nenhuma anotação ainda. Clique em "📝 Nova Anotação" pra começar.</div>';return;}
+  grid.innerHTML="";
+  sorted.forEach(n=>grid.appendChild(buildNoteCard(n)));
+}
+
+function buildNoteCard(n){
+  const div=document.createElement("div");
+  div.className=`note-card${n.pinned?" pinned":""}`;
+  div.innerHTML=`
+    <div class="note-hd">
+      <div class="note-title" contenteditable="true" style="color:${n.titleColor||"var(--text)"}">${esc(n.title||"Sem título")}</div>
+      <input type="color" class="note-color-inp" value="${n.titleColor&&n.titleColor.startsWith("#")?n.titleColor:"#eeeef5"}" title="Cor do título">
+      <button class="note-pin${n.pinned?" on":""}" title="Fixar">📌</button>
+      <button class="note-del" title="Excluir">🗑</button>
+    </div>
+    <div class="note-toolbar">
+      <button class="note-tool-btn" data-cmd="bold" title="Negrito"><b>N</b></button>
+      <button class="note-tool-btn" data-cmd="italic" title="Itálico"><i>I</i></button>
+      <button class="note-tool-btn" data-cmd="underline" title="Sublinhado"><u>S</u></button>
+      <input type="color" class="note-color-inp" data-textcolor="1" value="#eeeef5" title="Cor do texto selecionado">
+    </div>
+    <div class="note-body" contenteditable="true">${n.content||""}</div>
+    <div class="note-footer">Atualizado ${n.updatedAt?fmtDT(n.updatedAt):""}</div>`;
+
+  const titleEl=div.querySelector(".note-title");
+  const bodyEl=div.querySelector(".note-body");
+  const titleColorInp=div.querySelector('input[type=color]:not([data-textcolor])');
+  const textColorInp=div.querySelector('input[data-textcolor]');
+
+  titleEl.addEventListener("blur",()=>saveNote(n.id,{title:titleEl.textContent.trim()||"Sem título"}));
+  bodyEl.addEventListener("blur",()=>saveNote(n.id,{content:bodyEl.innerHTML}));
+  titleColorInp.addEventListener("input",()=>{
+    titleEl.style.color=titleColorInp.value;
+    saveNote(n.id,{titleColor:titleColorInp.value});
+  });
+  textColorInp.addEventListener("input",()=>{
+    bodyEl.focus();
+    try{document.execCommand("foreColor",false,textColorInp.value);}catch(e){}
+    saveNote(n.id,{content:bodyEl.innerHTML});
+  });
+  div.querySelectorAll(".note-tool-btn").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      bodyEl.focus();
+      try{document.execCommand(btn.dataset.cmd,false,null);}catch(e){}
+      saveNote(n.id,{content:bodyEl.innerHTML});
+    });
+  });
+  div.querySelector(".note-pin").addEventListener("click",()=>saveNote(n.id,{pinned:!n.pinned}));
+  div.querySelector(".note-del").addEventListener("click",async()=>{
+    if(!confirm("Excluir esta anotação?"))return;
+    try{await deleteDoc(doc(db,"notes",n.id));}catch(e){}
+  });
+  return div;
+}
+
+async function saveNote(id,fields){
+  try{await updateDoc(doc(db,"notes",id),{...fields,updatedAt:serverTimestamp()});}catch(e){}
+}
+
+document.getElementById("btnNewNote")?.addEventListener("click",async()=>{
+  try{
+    await addDoc(collection(db,"notes"),{
+      title:"Nova anotação",titleColor:"#eeeef5",content:"",pinned:false,
+      ownerId:user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
+    });
+  }catch(e){alert("Erro ao criar anotação: "+e.message);}
+});
+
 let notifEmails=[];
 let unsubNotifEmails=null;
 async function sendTaskEmailNotification(task){
