@@ -119,6 +119,13 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .task:hover{background:var(--s3);border-color:var(--border2);box-shadow:0 4px 14px rgba(0,0,0,.25);}
 .task:hover .t-actions{opacity:1;}
 .task.done{opacity:.36;}
+.task.overdue{border-color:var(--urg);background:rgba(224,92,92,.06);}
+.task.overdue:hover{background:rgba(224,92,92,.1);}
+.kcard.overdue{border-color:var(--urg);background:rgba(224,92,92,.08);}
+.tl-card.overdue{border-color:var(--urg);background:rgba(224,92,92,.08);}
+.overdue-badge{background:rgba(224,92,92,.2);color:var(--urg);border:1px solid rgba(224,92,92,.4);font-weight:700;animation:cmtPulse 2.2s ease-in-out infinite;}
+.btn-postpone{background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.3);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.65rem;padding:2px 8px;font-weight:600;}
+.btn-postpone:hover{background:rgba(224,92,92,.2);}
 .task.done .t-title{text-decoration:line-through;color:var(--text3);}
 .prio-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:5px;background:var(--emp-color,#606078);}
 .chk{width:18px;height:18px;border-radius:6px;border:2px solid var(--border2);flex-shrink:0;margin-top:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .2s;user-select:none;}
@@ -1481,29 +1488,69 @@ let deadlineSnoozedUntil=0;
 let deadlinePopupVisible=false;
 let deadlineCheckInterval=null;
 
-function soundDeadlineAlert(){playChime([{freq:740,start:0,dur:.18},{freq:932,start:.14,dur:.18},{freq:740,start:.3,dur:.26}]);}
+function soundDeadlineAlert(){playChime([{freq:740,start:0,dur:.18},{freq:932,start:.14,dur:.18},{freq:740,start:.3,dur:.26}]);} // hoje sem horário / amanhã
+function soundDeadlineCritical(){playChime([{freq:988,start:0,dur:.12},{freq:1244,start:.1,dur:.12},{freq:988,start:.2,dur:.12},{freq:1244,start:.3,dur:.22}]);} // vencendo em até 2h
+function soundOverdueAlert(){playChime([{freq:392,start:0,dur:.22},{freq:330,start:.2,dur:.32}]);} // atrasada
 function soundCommentAdded(){playChime([{freq:440,start:0,dur:.1},{freq:554,start:.08,dur:.1},{freq:659,start:.16,dur:.22}]);}
 
-function getDeadlineAlerts(){
-  if(!user)return[];
-  return tasks.filter(t=>{
-    if(t.done)return false;
-    if(!taskResps(t).includes(user.uid))return false;
-    if(!isAdmin&&isTaskAdminOnly(t))return false;
-    if(!t.date)return false;
-    return dateBucketInfo(t.date).order<=1; // atrasada, hoje ou amanhã
-  }).sort((a,b)=>dateBucketInfo(a.date).order-dateBucketInfo(b.date).order);
+function getTaskDeadlineCategory(t){
+  if(t.done||!t.date||!user)return null;
+  if(!taskResps(t).includes(user.uid))return null;
+  if(!isAdmin&&isTaskAdminOnly(t))return null;
+  const b=dateBucketInfo(t.date);
+  if(b.order===-1)return"overdue";
+  if(b.order===0){
+    if(t.hora){
+      const[hh,mm]=t.hora.split(":").map(Number);
+      const deadline=new Date();deadline.setHours(hh,mm,0,0);
+      const diffMs=deadline-new Date();
+      if(diffMs<0)return"overdue"; // já passou do horário hoje
+      if(diffMs<=2*60*60*1000)return"critical"; // dentro de 2h do prazo
+      return null; // tem horário, mas ainda falta bastante — sem popup por enquanto
+    }
+    return"today";
+  }
+  if(b.order===1)return"tomorrow";
+  return null;
 }
 
-function renderDeadlinePopupList(alerts){
+function getDeadlineAlerts(){
+  const groups={overdue:[],critical:[],today:[],tomorrow:[]};
+  if(!user)return groups;
+  tasks.forEach(t=>{
+    const cat=getTaskDeadlineCategory(t);
+    if(cat)groups[cat].push(t);
+  });
+  return groups;
+}
+
+function computeSnoozeMs(groups){
+  if(groups.critical.length)return 5*60*1000;
+  if(groups.overdue.length||groups.today.length)return 15*60*1000;
+  return 60*60*1000; // só tarefas de amanhã
+}
+
+function pickAlertSound(groups){
+  if(groups.critical.length)return soundDeadlineCritical;
+  if(groups.overdue.length)return soundOverdueAlert;
+  return soundDeadlineAlert;
+}
+
+function renderDeadlinePopupList(groups){
   const list=document.getElementById("deadlinePopupList");if(!list)return;
-  list.innerHTML=alerts.map(t=>{
-    const b=dateBucketInfo(t.date);
-    return`<div class="deadline-item" data-id="${t.id}">
-      <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(t.tit)}</div>
-      <div style="font-size:.66rem;color:${b.order<0?"var(--urg)":"var(--text2)"};margin-top:2px">${esc(b.label)}${t.hora?" · 🕐"+esc(t.hora):""}</div>
-    </div>`;
-  }).join("");
+  const section=(items,label,colorVar)=>{
+    if(!items.length)return"";
+    return`<div style="font-size:.62rem;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
+      items.map(t=>`<div class="deadline-item" data-id="${t.id}">
+        <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(t.tit)}</div>
+        <div style="font-size:.66rem;color:${colorVar};margin-top:2px">${esc(dateBucketInfo(t.date).label)}${t.hora?" · 🕐"+esc(t.hora):""}</div>
+      </div>`).join("");
+  };
+  list.innerHTML=
+    section(groups.overdue,"⚠️ Atrasadas","var(--urg)")+
+    section(groups.critical,"⏰ Vencendo em até 2h","#ff8040")+
+    section(groups.today,"📅 Hoje","var(--text2)")+
+    section(groups.tomorrow,"🗓️ Amanhã","var(--text2)");
   list.querySelectorAll(".deadline-item").forEach(el=>{
     el.addEventListener("click",()=>openPreview(el.dataset.id));
   });
@@ -1511,25 +1558,26 @@ function renderDeadlinePopupList(alerts){
 
 function updateDeadlinePopup(){
   const popup=document.getElementById("deadlinePopup");if(!popup)return;
-  const alerts=getDeadlineAlerts();
-  if(!alerts.length){
+  const groups=getDeadlineAlerts();
+  const total=groups.overdue.length+groups.critical.length+groups.today.length+groups.tomorrow.length;
+  if(!total){
     popup.style.display="none";
     deadlinePopupVisible=false;
     return;
   }
-  renderDeadlinePopupList(alerts);
+  renderDeadlinePopupList(groups);
   const countEl=document.getElementById("deadlinePopupCount");
-  if(countEl)countEl.textContent=alerts.length;
+  if(countEl)countEl.textContent=total;
   if(Date.now()>=deadlineSnoozedUntil&&!deadlinePopupVisible){
     popup.style.display="block";
     deadlinePopupVisible=true;
-    soundDeadlineAlert();
+    pickAlertSound(groups)();
   }
 }
 
 function startDeadlineChecks(){
   updateDeadlinePopup();
-  deadlineCheckInterval=setInterval(updateDeadlinePopup,60*1000);
+  deadlineCheckInterval=setInterval(updateDeadlinePopup,30*1000);
 }
 function stopDeadlineChecks(){
   clearInterval(deadlineCheckInterval);
@@ -1542,7 +1590,7 @@ function stopDeadlineChecks(){
 document.getElementById("btnCloseDeadlinePopup")?.addEventListener("click",()=>{
   document.getElementById("deadlinePopup").style.display="none";
   deadlinePopupVisible=false;
-  deadlineSnoozedUntil=Date.now()+15*60*1000; // volta a aparecer em 15 min, se ainda houver prazo pendente
+  deadlineSnoozedUntil=Date.now()+computeSnoozeMs(getDeadlineAlerts());
 });
 
 function renderEmpFilters(){
@@ -1742,6 +1790,9 @@ function dateBucketInfo(dateStr){
   const months=Math.round(diffDays/30);
   return{key:"j-meses-"+months,label:months===1?"Daqui a um mês":`Daqui a ${months} meses`,order:35+months};
 }
+function isOverdue(t){
+  return!t.done&&t.date&&dateBucketInfo(t.date).order===-1;
+}
 
 function renderLista(){
   const c=document.getElementById("lista-secs");c.innerHTML="";
@@ -1806,8 +1857,9 @@ function buildCard(t){
   const pr=PRIOS[t.prio]||PRIOS.nor;
   const resps=taskResps(t).map(id=>members.find(m=>m.id===id)).filter(Boolean);
   const canEdit=isAdmin||(t.createdBy===user?.uid);
+  const overdue=isOverdue(t);
   const div=document.createElement("div");
-  div.className=`task prio-${t.prio}${t.done?" done":""}`;
+  div.className=`task prio-${t.prio}${t.done?" done":""}${overdue?" overdue":""}`;
   const cmts=(t.cmts||[]).length;
   div.innerHTML=`
     <div class="chk">${t.done?"✓":""}</div>
@@ -1817,6 +1869,7 @@ function buildCard(t){
       ${t.det?`<div class="t-detail">${esc(t.det)}</div>`:""}
       <div class="t-meta">
         <span class="tag ${pr.tc}">${pr.l}</span>
+        ${overdue?`<span class="tag overdue-badge">⚠️ Prazo vencido</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="background:${resp.color}">${resp.ini||"?"}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
@@ -1826,7 +1879,7 @@ function buildCard(t){
         ${isAdmin?`<select class="psel"><option value="urg"${t.prio==="urg"?" selected":""}>Urgente</option><option value="imp"${t.prio==="imp"?" selected":""}>Importante</option><option value="nor"${t.prio==="nor"?" selected":""}>Normal</option><option value="low"${t.prio==="low"?" selected":""}>Baixa</option></select>`:""}
       </div>
       <div class="t-comments" id="cmt-${t.id}">
-        <div>${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canEdit?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")}</div>
+        <div>${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canDeleteComment(t,cc)?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")}</div>
         <div class="cmt-input-row"><input class="cmt-input" placeholder="Comentar... (Enter)"><button class="cmt-send">↑</button></div>
       </div>
     </div>
@@ -1850,6 +1903,12 @@ function buildCard(t){
     horaInp.addEventListener("change",()=>saveInline(t.id,"hora",horaInp));
     const pselEl=div.querySelector(".psel");
     if(pselEl)pselEl.addEventListener("change",()=>saveInline(t.id,"prio",pselEl));
+    div.querySelector(".btn-postpone")?.addEventListener("click",e=>{
+      e.stopPropagation();
+      const dateInp=div.querySelector("input[type=date]");
+      dateInp.focus();
+      try{dateInp.showPicker();}catch(err){}
+    });
   }
 
   div.querySelector(".bi.cmt")?.addEventListener("click",()=>{
@@ -1877,7 +1936,7 @@ function buildCard(t){
 function renderKanban(){
   const g=document.getElementById("kgrid");g.innerHTML="";
   [["urg","Urgente"],["imp","Importante"],["nor","Normal"],["low","Baixa"]].forEach(([prio,lbl])=>{
-    const ts=visible().filter(t=>t.prio===prio);
+    const ts=visible().filter(t=>t.prio===prio).sort((a,b)=>(isOverdue(b)?1:0)-(isOverdue(a)?1:0));
     const col=document.createElement("div");col.className="kcol";
     col.innerHTML=`<div class="kcol-hd ${prio}"><div class="kcol-hd-title"><div class="kcol-dot"></div><span>${lbl}</span></div><span class="kcol-cnt">${ts.length}</span></div><div class="kcol-body" id="k-${prio}"></div><div class="kcol-footer">${ts.length} tarefa${ts.length!==1?"s":""} ativa${ts.length!==1?"s":""}</div>`;
     g.appendChild(col);
@@ -1886,15 +1945,17 @@ function renderKanban(){
     ts.forEach(t=>{
       const emps=taskEmps(t).map(id=>getEmp(id));
       const resps=taskResps(t).map(id=>members.find(m=>m.id===id)).filter(Boolean);
-      const kc=document.createElement("div");kc.className=`kcard${t.done?" done":""}`;
+      const overdue=isOverdue(t);
+      const kc=document.createElement("div");kc.className=`kcard${t.done?" done":""}${overdue?" overdue":""}`;
       kc.innerHTML=`
         <div class="kc-top">
           <div class="kc-mini-chk">${t.done?"✓":""}</div>
           <div class="kc-title">${esc(t.tit)}</div>
         </div>
+        ${overdue?`<span class="tag overdue-badge" style="margin-bottom:6px;display:inline-block">⚠️ Prazo vencido</span>`:""}
         <div>${emps.map(emp=>`<span class="kc-emp-badge" style="background:${emp.color}20;color:${emp.color};margin-right:4px">${esc(emp.label)}</span>`).join("")}</div>
         <div class="kc-footer">
-          <div class="kc-date">${t.date?fmtD(t.date):""}${t.hora?" · "+t.hora:""}</div>
+          <div class="kc-date" style="${overdue?"color:var(--urg);font-weight:700":""}">${t.date?fmtD(t.date):""}${t.hora?" · "+t.hora:""}</div>
           <div style="display:flex;gap:2px">${resps.map(resp=>`<div class="kc-resp" style="background:${resp.color}" title="${esc(resp.name)}">${resp.ini||"?"}</div>`).join("")}</div>
         </div>`;
       kc.querySelector(".kc-mini-chk").addEventListener("click",e=>{e.stopPropagation();toggleDone(t.id);});
@@ -1918,8 +1979,10 @@ function renderAgenda(){
       <div class="tl-tasks">${ts.slice().sort((a,b)=>(a.hora||"99:99").localeCompare(b.hora||"99:99")).map(t=>{
         const emps=taskEmps(t).map(id=>getEmp(id));
         const resps=taskResps(t).map(id=>members.find(m=>m.id===id)).filter(Boolean);
-        return`<div class="tl-card${t.done?" done":""}" data-taskid="${t.id}">
+        const overdue=isOverdue(t);
+        return`<div class="tl-card${t.done?" done":""}${overdue?" overdue":""}" data-taskid="${t.id}">
           <div class="tl-mini-chk" data-id="${t.id}">${t.done?"✓":""}</div>
+          ${overdue?`<span class="tag overdue-badge" style="flex-shrink:0">⚠️ Vencido</span>`:""}
           ${t.hora?`<span style="font-size:.66rem;color:var(--text2);flex-shrink:0">🕐${t.hora}</span>`:""}
           <div class="tl-ttl" style="flex:1">${esc(t.tit)}</div>
           ${resps.map(resp=>`<div class="resp-pill" style="flex-shrink:0"><div class="resp-avatar" style="background:${resp.color}">${resp.ini||"?"}</div>${esc(resp.name)}</div>`).join("")}
@@ -2477,13 +2540,20 @@ async function restoreTask(id){
 async function addCmt(id,inp){
   const text=(inp?.value||"").trim();if(!text)return;
   const t=tasks.find(t=>t.id===id);if(!t)return;
-  const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,text,ts:Date.now()}];
+  const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()}];
   try{await updateDoc(doc(db,"tasks",id),{cmts});inp.value="";}catch(e){}
+}
+
+function canDeleteComment(t,cc){
+  if(isAdmin||t.createdBy===user?.uid)return true;
+  if(cc.uid)return cc.uid===user?.uid;
+  return cc.who===(user?.displayName||user?.email); // comentários antigos sem uid gravado
 }
 
 async function deleteComment(taskId,idx){
   const t=tasks.find(x=>x.id===taskId);if(!t)return;
-  if(!(isAdmin||t.createdBy===user?.uid))return;
+  const cc=(t.cmts||[])[idx];if(!cc)return;
+  if(!canDeleteComment(t,cc))return;
   if(!confirm("Excluir este comentário?"))return;
   const cmts=(t.cmts||[]).filter((_,i)=>i!==idx);
   try{await updateDoc(doc(db,"tasks",taskId),{cmts});}catch(e){}
@@ -2538,7 +2608,7 @@ function openPreview(id){
     </div>
     <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">
       <div style="font-size:.68rem;color:var(--text2);font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">💬 Comentários</div>
-      <div id="previewCmts">${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canEdit?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")||'<div style="font-size:.72rem;color:var(--text3)" id="previewCmtsEmpty">Nenhum comentário ainda.</div>'}</div>
+      <div id="previewCmts">${(t.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canDeleteComment(t,cc)?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")||'<div style="font-size:.72rem;color:var(--text3)" id="previewCmtsEmpty">Nenhum comentário ainda.</div>'}</div>
       <div class="cmt-input-row" style="margin-top:7px"><input class="cmt-input" id="previewCmtInp" placeholder="Comentar... (Enter)"><button class="cmt-send" id="previewCmtSend">↑</button></div>
     </div>
     <div class="mf-row">
@@ -2674,10 +2744,16 @@ function buildNoteCard(n){
   textColorInp.addEventListener("mousedown",()=>saveSelection());
   textColorInp.addEventListener("input",()=>{
     bodyEl.focus();
-    if(savedRange){
-      const sel=window.getSelection();
+    const sel=window.getSelection();
+    if(savedRange&&!savedRange.collapsed){
       sel.removeAllRanges();
       sel.addRange(savedRange);
+    }else{
+      // nada selecionado: aplica a cor a todo o texto da nota
+      const range=document.createRange();
+      range.selectNodeContents(bodyEl);
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
     try{document.execCommand("foreColor",false,textColorInp.value);}catch(e){}
     saveNote(n.id,{content:bodyEl.innerHTML});
