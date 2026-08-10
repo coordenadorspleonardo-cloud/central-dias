@@ -1440,21 +1440,18 @@ function renderRespFilters(){
 
 function renderEmpConfig(){
   const c=document.getElementById("empresaConfig");if(!c||!isAdmin)return;
-  const editable=empresas.filter(e=>!e.adminOnly);
-  const adminOnly=empresas.filter(e=>e.adminOnly);
-  c.innerHTML=editable.map((e,idx)=>`
+  const list=[...empresas].sort((a,b)=>(a.order||0)-(b.order||0));
+  c.innerHTML=list.map((e,idx)=>`
     <div class="sc-emp-item">
       <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
         <button data-up="${e.id}" ${idx===0?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===0?"var(--text3)":"var(--text2)"};cursor:${idx===0?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▲</button>
-        <button data-down="${e.id}" ${idx===editable.length-1?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===editable.length-1?"var(--text3)":"var(--text2)"};cursor:${idx===editable.length-1?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▼</button>
+        <button data-down="${e.id}" ${idx===list.length-1?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===list.length-1?"var(--text3)":"var(--text2)"};cursor:${idx===list.length-1?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▼</button>
       </div>
       <div class="sc-emp-color" style="background:${e.color}"></div>
       <input class="sc-emp-input" value="${esc(e.label)}" data-id="${e.id}" data-field="label">
       <input type="color" value="${e.color}" data-id="${e.id}" data-field="color" style="width:28px;height:24px;border:none;border-radius:4px;cursor:pointer;padding:0;flex-shrink:0;">
-      <button data-del="${e.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+      ${e.adminOnly?`<span title="Visível só para o Admin" style="font-size:.72rem;flex-shrink:0">🔒</span><div style="width:26px;flex-shrink:0"></div>`:`<button data-del="${e.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;flex-shrink:0">✕</button>`}
     </div>`).join("")+
-    (adminOnly.length?`<div style="font-size:.67rem;color:var(--text2);margin:8px 0 5px">🔒 Seções administrativas:</div>`+
-      adminOnly.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:7px;margin-bottom:6px;opacity:.5;"><div style="width:12px;height:12px;border-radius:3px;background:${e.color}"></div><span style="font-size:.76rem;color:var(--text2)">${esc(e.label)}</span></div>`).join(""):"")+
     `<div style="display:flex;gap:7px;margin-top:10px;">
       <input type="text" id="newEmpName" placeholder="Nome da nova empresa" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
       <input type="color" id="newEmpColor" value="#4a7fe0" style="width:34px;height:34px;border:none;border-radius:7px;cursor:pointer;padding:0;flex-shrink:0;">
@@ -1477,17 +1474,15 @@ function renderEmpConfig(){
 }
 
 async function moveEmp(id,dir){
-  const editable=empresas.filter(e=>!e.adminOnly).sort((a,b)=>(a.order||0)-(b.order||0));
-  const adminOnly=empresas.filter(e=>e.adminOnly);
-  const idx=editable.findIndex(e=>e.id===id);
+  const list=[...empresas].sort((a,b)=>(a.order||0)-(b.order||0));
+  const idx=list.findIndex(e=>e.id===id);
   const swapIdx=idx+dir;
-  if(idx<0||swapIdx<0||swapIdx>=editable.length)return;
-  const a=editable[idx],b=editable[swapIdx];
+  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
+  const a=list[idx],b=list[swapIdx];
   const tempOrder=a.order;
   a.order=b.order;
   b.order=tempOrder;
-  const novas=[...editable,...adminOnly];
-  try{await setDoc(doc(db,"config","empresas"),{list:novas});}catch(e){}
+  try{await setDoc(doc(db,"config","empresas"),{list:[...empresas]});}catch(e){alert("Erro ao reordenar: "+e.message);}
 }
 
 async function addEmp(){
@@ -1528,10 +1523,13 @@ function renderNotifEmailsConfig(){
   });
   document.getElementById("btnAddNotifEmail")?.addEventListener("click",async()=>{
     const inp=document.getElementById("newNotifEmail");
-    const val=inp.value.trim();
-    if(!val||!val.includes("@")){alert("Informe um e-mail válido.");return;}
+    const raw=inp.value.trim();
+    const angleMatch=raw.match(/<([^<>]+)>/);
+    const val=(angleMatch?angleMatch[1]:raw).trim();
+    const emailRegex=/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+    if(!emailRegex.test(val)){alert("Informe um e-mail válido, sem nome junto — só o endereço (ex: nome@dominio.com).");return;}
     if(notifEmails.includes(val)){alert("Este e-mail já está na lista.");return;}
-    try{await setDoc(doc(db,"config","notification_emails"),{list:[...notifEmails,val]});}catch(e){}
+    try{await setDoc(doc(db,"config","notification_emails"),{list:[...notifEmails,val]});inp.value="";}catch(e){}
   });
 }
 
