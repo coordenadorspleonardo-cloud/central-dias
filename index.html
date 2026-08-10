@@ -124,9 +124,9 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .chk{width:18px;height:18px;border-radius:6px;border:2px solid var(--border2);flex-shrink:0;margin-top:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .2s;user-select:none;}
 .task.done .chk{color:#fff;border-color:transparent;background:var(--nor);}
 .t-body{flex:1;min-width:0;}
-.t-title{font-size:.83rem;font-weight:500;color:var(--text);line-height:1.4;border-radius:3px;padding:1px 3px;margin:-1px -3px;outline:none;cursor:text;}
+.t-title{font-size:.83rem;font-weight:500;color:var(--text);line-height:1.4;border-radius:3px;padding:1px 3px;margin:-1px -3px;outline:none;cursor:pointer;}
 .t-title:focus{background:var(--s3);outline:1.5px solid var(--accent);}
-.t-detail{font-size:.72rem;color:var(--text2);margin-top:2px;line-height:1.5;border-radius:3px;padding:1px 3px;margin-left:-3px;outline:none;cursor:text;}
+.t-detail{font-size:.72rem;color:var(--text2);margin-top:2px;line-height:1.5;border-radius:3px;padding:1px 3px;margin-left:-3px;outline:none;cursor:pointer;}
 .t-detail:focus{background:var(--s3);outline:1.5px solid var(--accent2);}
 .t-meta{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;align-items:center;}
 .tag{padding:2px 8px;border-radius:8px;font-size:.62rem;font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap;}
@@ -595,7 +595,7 @@ tr:hover td{background:var(--s3);}
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📧 E-mails de Notificação de Tarefas</h3>
-          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Toda vez que uma tarefa for criada, um e-mail é enviado para os endereços abaixo (via EmailJS).</p>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Toda vez que uma tarefa <strong>Urgente</strong> ou <strong>Importante</strong> for criada, um e-mail é enviado para os endereços abaixo (via EmailJS).</p>
           <div id="notifEmailsConfig"></div>
         </div>
         <div class="sc">
@@ -672,9 +672,9 @@ const CLOUDINARY_UPLOAD_PRESET = "dp_gestor_chat";
 const STORAGE_CAP_BYTES = 20*1024*1024*1024;
 
 // ── EMAILJS (preencha com os dados da sua conta em emailjs.com) ──
-const EMAILJS_PUBLIC_KEY = "COLE_AQUI_SUA_PUBLIC_KEY";
-const EMAILJS_SERVICE_ID = "COLE_AQUI_SEU_SERVICE_ID";
-const EMAILJS_TEMPLATE_ID = "COLE_AQUI_SEU_TEMPLATE_ID";
+const EMAILJS_PUBLIC_KEY = "EutZaNyEwJjJOn5iN";
+const EMAILJS_SERVICE_ID = "service_rdrtnw5";
+const EMAILJS_TEMPLATE_ID = "template_0c3r7zr";
 try{ if(window.emailjs && EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")===-1) window.emailjs.init({publicKey:EMAILJS_PUBLIC_KEY}); }catch(e){}
 
 // ── NOTIFICAÇÕES SONORAS RECORRENTES ──
@@ -752,6 +752,7 @@ function formatSize(bytes){
   return(bytes/(1024*1024)).toFixed(1)+" MB";
 }
 function getEmp(id){return empresas.find(e=>e.id===id)||{id:"outro",label:"Outro",color:"#606078"};}
+function sortedMembers(){return [...members].sort((a,b)=>(a.order??0)-(b.order??0));}
 function taskEmps(t){return Array.isArray(t.emp)?t.emp:(t.emp?[t.emp]:[]);}
 function taskResps(t){return Array.isArray(t.resp)?t.resp:(t.resp?[t.resp]:[]);}
 function convId(a,b){return[a,b].sort().join("_");}
@@ -1357,8 +1358,8 @@ function startListeners(){
     purgeDone(); renderAll(); checkNotif();
   });
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
-    members=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderMbrList(); renderMbrConfig(); renderRespMultiSelect(); renderEmpMultiSelect(); renderRespFilters();
+    members=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
+    renderMbrList(); renderMbrConfig(); renderRespMultiSelect(); renderEmpMultiSelect(); renderWatchMultiSelect(); renderRespFilters();
   });
   unsubPresence=onSnapshot(collection(db,"presence"),snap=>{
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
@@ -1428,7 +1429,7 @@ function renderEmpFilters(){
 function renderRespFilters(){
   const c=document.getElementById("respFilters");if(!c)return;
   c.innerHTML=`<button class="fp${respFilter==="all"?" on":""}" data-resp="all">Todos</button>`+
-    members.map(m=>`<button class="fp${respFilter===m.id?" on":""}" data-resp="${m.id}" style="${respFilter===m.id?`background:${m.color}22;border-color:${m.color};color:${m.color};`:""}">${esc(m.name)}</button>`).join("");
+    sortedMembers().map(m=>`<button class="fp${respFilter===m.id?" on":""}" data-resp="${m.id}" style="${respFilter===m.id?`background:${m.color}22;border-color:${m.color};color:${m.color};`:""}">${esc(m.name)}</button>`).join("");
   c.querySelectorAll(".fp").forEach(btn=>{
     btn.addEventListener("click",()=>{
       respFilter=btn.dataset.resp;
@@ -1669,8 +1670,8 @@ function buildCard(t){
     <div class="chk">${t.done?"✓":""}</div>
     <div class="prio-dot" style="background:${primaryEmp.color}"></div>
     <div class="t-body">
-      <div class="t-title" contenteditable="${canEdit}" style="${!canEdit?"pointer-events:none;":""}">${esc(t.tit)}</div>
-      <div class="t-detail" contenteditable="${canEdit}" style="${!canEdit?"pointer-events:none;":""}">${esc(t.det||"")}</div>
+      <div class="t-title">${esc(t.tit)}</div>
+      ${t.det?`<div class="t-detail">${esc(t.det)}</div>`:""}
       <div class="t-meta">
         <span class="tag ${pr.tc}">${pr.l}</span>
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
@@ -1691,18 +1692,14 @@ function buildCard(t){
     </div>`;
 
   div.addEventListener("click",e=>{
-    if(e.target.closest("input,select,button,.t-title,.t-detail,.chk,.cmt-input-row,.t-comments"))return;
+    if(e.target.closest("input,select,button,.chk,.cmt-input-row,.t-comments"))return;
     openPreview(t.id);
   });
 
   const chk=div.querySelector(".chk");
   chk.addEventListener("click",()=>toggleDone(t.id));
 
-  const titleEl=div.querySelector(".t-title");
-  const detEl=div.querySelector(".t-detail");
   if(canEdit){
-    titleEl.addEventListener("blur",()=>saveInline(t.id,"tit",titleEl));
-    detEl.addEventListener("blur",()=>saveInline(t.id,"det",detEl));
     const dateInp=div.querySelector("input[type=date]");
     dateInp.addEventListener("change",()=>saveInline(t.id,"date",dateInp));
     const horaInp=div.querySelector("input[type=time]");
@@ -2038,7 +2035,7 @@ async function markAsRead(dmMsgs,coll){
 
 function renderMbrList(){
   const ml=document.getElementById("mbrList");ml.innerHTML="";
-  const others=members.filter(m=>m.id!==user?.uid);
+  const others=sortedMembers().filter(m=>m.id!==user?.uid);
   document.getElementById("mbrCnt").textContent=`· ${members.length}`;
 
   const geralEl=document.createElement("div");
@@ -2100,7 +2097,7 @@ function renderMbrList(){
 }
 
 function openGroupModal(){
-  const others=members.filter(m=>m.id!==user?.uid);
+  const others=sortedMembers().filter(m=>m.id!==user?.uid);
   const ov=document.createElement("div");
   ov.className="modal-ov open";
   ov.innerHTML=`<div class="modal" style="max-width:380px">
@@ -2177,9 +2174,14 @@ async function renderMonitorList(container){
 function renderMbrConfig(){
   if(!isAdmin)return;
   const c=document.getElementById("mbrConfig");if(!c)return;c.innerHTML="";
-  members.forEach(m=>{
+  const list=sortedMembers();
+  list.forEach((m,idx)=>{
     const row=document.createElement("div");row.className="member-row";
-    row.innerHTML=`<div style="width:26px;height:26px;border-radius:50%;background:${m.color}22;color:${m.color};display:flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;flex-shrink:0">${m.ini||"?"}</div>
+    row.innerHTML=`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <button data-mup="${m.id}" ${idx===0?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===0?"var(--text3)":"var(--text2)"};cursor:${idx===0?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▲</button>
+        <button data-mdown="${m.id}" ${idx===list.length-1?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===list.length-1?"var(--text3)":"var(--text2)"};cursor:${idx===list.length-1?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▼</button>
+      </div>
+      <div style="width:26px;height:26px;border-radius:50%;background:${m.color}22;color:${m.color};display:flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;flex-shrink:0">${m.ini||"?"}</div>
       <div class="member-fields">
         <input class="mf-inp" value="${esc(m.name)}" placeholder="Nome">
         <input class="mf-inp" value="${esc(m.role||"")}" placeholder="Cargo" style="font-size:.7rem;color:var(--text2)">
@@ -2202,14 +2204,29 @@ function renderMbrConfig(){
       if(!confirm("Remover membro?"))return;
       try{await deleteDoc(doc(db,"members",m.id));}catch(e){}
     });
+    row.querySelector("[data-mup]")?.addEventListener("click",()=>moveMbr(m.id,-1));
+    row.querySelector("[data-mdown]")?.addEventListener("click",()=>moveMbr(m.id,1));
     c.appendChild(row);
   });
+}
+
+async function moveMbr(id,dir){
+  const list=sortedMembers();
+  const idx=list.findIndex(m=>m.id===id);
+  const swapIdx=idx+dir;
+  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
+  const a=list[idx],b=list[swapIdx];
+  const orderA=a.order??idx, orderB=b.order??swapIdx;
+  try{
+    await updateDoc(doc(db,"members",a.id),{order:orderB});
+    await updateDoc(doc(db,"members",b.id),{order:orderA});
+  }catch(e){alert("Erro ao reordenar: "+e.message);}
 }
 
 function renderRespMultiSelect(){
   const drop=document.getElementById("f-resp-drop");const btn=document.getElementById("f-resp-btn");
   if(!drop||!btn)return;
-  drop.innerHTML=members.map(m=>`<label class="multisel-opt"><input type="checkbox" data-resp-opt="${m.id}" ${modalSelectedResps.includes(m.id)?"checked":""}>${esc(m.name)}</label>`).join("")||'<div style="padding:6px;font-size:.72rem;color:var(--text3)">Nenhum membro.</div>';
+  drop.innerHTML=sortedMembers().map(m=>`<label class="multisel-opt"><input type="checkbox" data-resp-opt="${m.id}" ${modalSelectedResps.includes(m.id)?"checked":""}>${esc(m.name)}</label>`).join("")||'<div style="padding:6px;font-size:.72rem;color:var(--text3)">Nenhum membro.</div>';
   drop.querySelectorAll("[data-resp-opt]").forEach(cb=>{
     cb.addEventListener("change",function(){
       const id=this.dataset.respOpt;
@@ -2232,7 +2249,7 @@ document.getElementById("f-resp-btn")?.addEventListener("click",e=>{
 function renderWatchMultiSelect(){
   const drop=document.getElementById("f-watch-drop");const btn=document.getElementById("f-watch-btn");
   if(!drop||!btn)return;
-  drop.innerHTML=members.map(m=>`<label class="multisel-opt"><input type="checkbox" data-watch-opt="${m.id}" ${modalSelectedWatchers.includes(m.id)?"checked":""}>${esc(m.name)}${m.role==="Admin"?" (Admin)":""}</label>`).join("")||'<div style="padding:6px;font-size:.72rem;color:var(--text3)">Nenhum membro.</div>';
+  drop.innerHTML=sortedMembers().map(m=>`<label class="multisel-opt"><input type="checkbox" data-watch-opt="${m.id}" ${modalSelectedWatchers.includes(m.id)?"checked":""}>${esc(m.name)}${m.role==="Admin"?" (Admin)":""}</label>`).join("")||'<div style="padding:6px;font-size:.72rem;color:var(--text3)">Nenhum membro.</div>';
   drop.querySelectorAll("[data-watch-opt]").forEach(cb=>{
     cb.addEventListener("change",function(){
       const id=this.dataset.watchOpt;
@@ -2440,6 +2457,7 @@ let unsubNotifEmails=null;
 async function sendTaskEmailNotification(task){
   if(!window.emailjs||EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")!==-1)return; // EmailJS ainda não configurado
   if(!notifEmails.length)return;
+  if(!["urg","imp"].includes(task.prio))return; // só envia para Urgente e Importante
   const empLabels=taskEmps(task).map(id=>getEmp(id).label).join(", ")||"—";
   const watcherNames=(task.watchers||[]).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", ");
   const params={
