@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#080910;--s1:#0f1018;--s2:#141520;--s3:#1a1b2e;--border:#22243a;--border2:#2e3050;--text:#eeeef5;--text2:#8888aa;--text3:#44445a;--accent:#c8a96e;--accent2:#7c6fcd;--urg:#e05c5c;--imp:#e08c3a;--nor:#4caf7d;--low:#4a8fd4;--r:12px;--navy:#1a1f36;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -53,7 +54,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 #notifBanner button{background:none;border:none;color:var(--urg);cursor:pointer;font-size:.9rem;}
 
 /* HEADER — estilo topbar navy */
-header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padding:0 20px;display:flex;align-items:center;gap:0;height:52px;flex-wrap:wrap;position:sticky;top:0;z-index:100;}
+header{background:var(--header-bg,var(--navy));border-bottom:1px solid rgba(255,255,255,.08);padding:0 20px;display:flex;align-items:center;gap:0;height:52px;flex-wrap:wrap;position:sticky;top:0;z-index:100;}
 .logo{display:flex;align-items:center;gap:8px;padding-right:18px;border-right:1px solid rgba(255,255,255,.1);height:100%;flex-shrink:0;}
 .logo-icon{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#c8a96e,#e8c88e);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;}
 .logo h1{font-family:'Inter',sans-serif;font-size:.85rem;font-weight:700;color:#fff;line-height:1.2;}
@@ -77,7 +78,7 @@ header{background:var(--navy);border-bottom:1px solid rgba(255,255,255,.08);padd
 .btn-logout:hover{color:var(--urg);border-color:var(--urg);}
 
 /* FILTERS */
-.filters{background:var(--s1);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.filters{background:var(--filters-bg,var(--s1));border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .filter-label{font-size:.63rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;}
 .fp{padding:4px 12px;border-radius:14px;font-size:.7rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .2s;font-family:inherit;}
 .fp:hover{background:var(--s3);}
@@ -626,7 +627,7 @@ tr:hover td{background:var(--s3);}
     <button class="tab" data-tab="dash">📈 Dashboard</button>
     <button class="tab" data-tab="historico">📜 Histórico</button>
     <button class="tab" data-tab="concluidas">✅ Concluídas</button>
-    <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--accent2)"></span></button>
+    <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
@@ -761,6 +762,11 @@ tr:hover td{background:var(--s3);}
             <button class="thbtn" style="background:#0f0806;color:#ff8040" data-theme="sunset">🌅 Pôr do Sol</button>
             <button class="thbtn" style="background:#020e18;color:#00c8f0" data-theme="ocean">🌊 Oceano</button>
             <button class="thbtn" style="background:#0e0906;color:#c87840" data-theme="coffee">☕ Café</button>
+            <button class="thbtn" style="background:#0d0d0d;color:#b0b0b0" data-theme="grafite">⚙️ Grafite</button>
+            <button class="thbtn" style="background:#050505;color:#d4d4d4" data-theme="carvao">⬛ Carvão</button>
+            <button class="thbtn" style="background:#14100a;color:#d4b896" data-theme="areia">🏖️ Areia</button>
+            <button class="thbtn" style="background:#100a08;color:#a67c52" data-theme="marrom">🌰 Marrom</button>
+            <button class="thbtn" style="background:#0c0c0d;color:#a8a8ac" data-theme="neutro">🔘 Neutro</button>
           </div>
           <div style="margin-top:11px">
             <div class="color-row"><span class="cl">Destaque</span><input class="cinp" type="color" value="#c8a96e" data-var="--accent"></div>
@@ -768,6 +774,9 @@ tr:hover td{background:var(--s3);}
             <div class="color-row"><span class="cl">Fundo</span><input class="cinp" type="color" value="#080910" data-var="--bg"></div>
             <div class="color-row"><span class="cl">Balão "Lista"</span><input class="cinp" type="color" value="#c8a96e" data-var="--lista-badge-color"></div>
             <div class="color-row"><span class="cl">Balão "Desligamentos"</span><input class="cinp" type="color" value="#e05c5c" data-var="--deg-badge-color"></div>
+            <div class="color-row"><span class="cl">Balão "Acompanhamento"</span><input class="cinp" type="color" value="#7c6fcd" data-var="--watch-badge-color"></div>
+            <div class="color-row"><span class="cl">Fundo do cabeçalho</span><input class="cinp" type="color" value="#1a1f36" data-var="--header-bg"></div>
+            <div class="color-row"><span class="cl">Fundo da barra de filtros</span><input class="cinp" type="color" value="#0f1018" data-var="--filters-bg"></div>
           </div>
         </div>
         <div class="sc">
@@ -879,6 +888,11 @@ const THEMES = {
   sunset:  {bg:"#0f0806",s1:"#1a100a",s2:"#221610",s3:"#2c1c16",border:"#3c2820",border2:"#5a3828",text:"#fff0e8",text2:"#c09060",text3:"#705040",accent:"#ff8040",accent2:"#ff4080"},
   ocean:   {bg:"#020e18",s1:"#051620",s2:"#082028",s3:"#0c2a34",border:"#0e3848",border2:"#145060",text:"#d0f0ff",text2:"#5090b0",text3:"#285070",accent:"#00c8f0",accent2:"#00e8a0"},
   coffee:  {bg:"#0e0906",s1:"#18120c",s2:"#221a10",s3:"#2c2216",border:"#3c2e20",border2:"#564030",text:"#f5ead8",text2:"#b09060",text3:"#705040",accent:"#c87840",accent2:"#a05828"},
+  grafite: {bg:"#0d0d0d",s1:"#161616",s2:"#1e1e1e",s3:"#282828",border:"#333333",border2:"#454545",text:"#f0f0f0",text2:"#999999",text3:"#555555",accent:"#b0b0b0",accent2:"#808080"},
+  carvao:  {bg:"#050505",s1:"#0a0a0a",s2:"#121212",s3:"#1a1a1a",border:"#282828",border2:"#383838",text:"#e8e8e8",text2:"#8a8a8a",text3:"#484848",accent:"#d4d4d4",accent2:"#a0a0a0"},
+  areia:   {bg:"#14100a",s1:"#1c1710",s2:"#241d14",s3:"#2c2419",border:"#3c3226",border2:"#544636",text:"#f0e6d8",text2:"#b8a888",text3:"#705e46",accent:"#d4b896",accent2:"#c8a878"},
+  marrom:  {bg:"#100a08",s1:"#18100c",s2:"#201810",s3:"#282014",border:"#3a2c20",border2:"#503c2c",text:"#ede0d4",text2:"#a08868",text3:"#5c4632",accent:"#a67c52",accent2:"#8a6440"},
+  neutro:  {bg:"#0c0c0d",s1:"#131315",s2:"#1a1a1c",s3:"#222224",border:"#2e2e30",border2:"#404042",text:"#e6e6e8",text2:"#8e8e92",text3:"#4a4a4c",accent:"#a8a8ac",accent2:"#88888c"},
 };
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -1642,6 +1656,7 @@ function startListeners(){
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
     members=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
     renderMbrList(); renderMbrConfig(); renderRespMultiSelect(); renderEmpMultiSelect(); renderWatchMultiSelect(); renderRespFilters();
+    renderAll(); renderDesligamentos();
   });
   unsubPresence=onSnapshot(collection(db,"presence"),snap=>{
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
@@ -2177,12 +2192,14 @@ function buildCard(t){
   return div;
 }
 
+const PRIO_ICON_CLASS={urg:"ti-flame",imp:"ti-alert-triangle",nor:"ti-circle-check",low:"ti-arrow-down-circle"};
+
 function renderKanban(){
   const g=document.getElementById("kgrid");g.innerHTML="";
   [["urg","Urgente"],["imp","Importante"],["nor","Normal"],["low","Baixa"]].forEach(([prio,lbl])=>{
     const ts=visible().filter(t=>t.prio===prio).sort((a,b)=>(isOverdue(b)?1:0)-(isOverdue(a)?1:0));
     const col=document.createElement("div");col.className="kcol";
-    col.innerHTML=`<div class="kcol-hd ${prio}"><div class="kcol-hd-title"><div class="kcol-dot"></div><span>${lbl}</span></div><span class="kcol-cnt">${ts.length}</span></div><div class="kcol-body" id="k-${prio}"></div><div class="kcol-footer">${ts.length} tarefa${ts.length!==1?"s":""} ativa${ts.length!==1?"s":""}</div>`;
+    col.innerHTML=`<div class="kcol-hd ${prio}"><div class="kcol-hd-title"><i class="ti ${PRIO_ICON_CLASS[prio]}" style="font-size:16px;color:var(--${prio})"></i><span>${lbl}</span></div><span class="kcol-cnt">${ts.length}</span></div><div class="kcol-body" id="k-${prio}"></div><div class="kcol-footer">${ts.length} tarefa${ts.length!==1?"s":""} ativa${ts.length!==1?"s":""}</div>`;
     g.appendChild(col);
     const ct=col.querySelector("#k-"+prio);
     if(!ts.length){ct.innerHTML='<div class="empty" style="padding:10px">Nenhuma</div>';return;}
@@ -3229,7 +3246,7 @@ async function toggleDegFlag(id,field){
   const updates={[field]:newVal};
   const enviado=field==="enviado"?newVal:!!d.enviado;
   const homologado=field==="homologado"?newVal:!!d.homologado;
-  if(enviado&&homologado)updates.pagamento="realizado";
+  updates.pagamento=(enviado&&homologado)?"realizado":"pendente"; // sempre recalcula: só fica Realizado com os dois marcados
   try{await updateDoc(doc(db,"desligamentos",id),updates);}catch(e){}
 }
 
