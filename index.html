@@ -400,7 +400,7 @@ tr:hover td{background:var(--s3);}
 <div id="notifBanner"><span></span><button onclick="document.getElementById('notifBanner').style.display='none'">✕</button></div>
 
 <div id="deadlinePopup" style="display:none;position:fixed;bottom:20px;right:20px;z-index:500;width:300px;max-width:calc(100vw - 24px);background:var(--s2);border:1px solid var(--urg);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
-  <div style="background:rgba(224,92,92,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+  <div class="popup-drag-handle" style="background:rgba(224,92,92,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:move;">
     <span style="font-size:.78rem;font-weight:700;color:var(--urg)">⏰ Prazos se aproximando (<span id="deadlinePopupCount">0</span>)</span>
     <button id="btnCloseDeadlinePopup" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
   </div>
@@ -408,16 +408,16 @@ tr:hover td{background:var(--s3);}
 </div>
 
 <div id="weeklyDigestPopup" style="display:none;position:fixed;bottom:20px;left:20px;z-index:500;width:300px;max-width:calc(100vw - 24px);background:var(--s2);border:1px solid var(--accent2);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
-  <div style="background:rgba(124,111,205,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
-    <span style="font-size:.78rem;font-weight:700;color:var(--accent2)">📋 Resumo semanal — Desligamentos</span>
+  <div class="popup-drag-handle" style="background:rgba(124,111,205,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:move;">
+    <span style="font-size:.78rem;font-weight:700;color:var(--accent2)">🚪 Resumo — Desligamentos</span>
     <button id="btnCloseWeeklyDigest" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
   </div>
   <div id="weeklyDigestBody" style="padding:12px 14px;font-size:.78rem;color:var(--text);line-height:1.6;"></div>
 </div>
 
 <div id="degDeadlinePopup" style="display:none;position:fixed;bottom:20px;left:340px;z-index:500;width:300px;max-width:calc(100vw - 360px);background:var(--s2);border:1px solid #ff8040;border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
-  <div id="degDeadlinePopupHd" style="background:rgba(255,128,64,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
-    <span style="font-size:.78rem;font-weight:700;color:#ff8040">📋 Rescisões vencendo (<span id="degDeadlinePopupCount">0</span>)</span>
+  <div id="degDeadlinePopupHd" class="popup-drag-handle" style="background:rgba(255,128,64,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:move;">
+    <span style="font-size:.78rem;font-weight:700;color:#ff8040">🚪 Rescisões vencendo (<span id="degDeadlinePopupCount">0</span>)</span>
     <button id="btnCloseDegDeadline" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
   </div>
   <div id="degDeadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
@@ -590,6 +590,7 @@ tr:hover td{background:var(--s3);}
       <div class="user-pill"><div class="user-av">👤</div><span id="userEmail"></span><div class="online" id="selfOnlineDot" title="Você está online"></div><span class="admin-badge" id="adminBadge">Admin</span></div>
       <div class="date-pill" id="datePill"></div>
       <button class="btn-focus" id="btnFocus">⚡ Foco</button>
+      <button class="btn-focus" id="btnMuteToggle" style="background:rgba(224,92,92,.1);border-color:rgba(224,92,92,.25);color:#ff8a8a">🔕 Silenciar</button>
       <button class="btn-add" id="btnAdd">＋ Nova Tarefa</button>
       <button class="btn-logout" id="btnLogout">Sair</button>
     </div>
@@ -618,7 +619,7 @@ tr:hover td{background:var(--s3);}
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="lista">📋 Lista <span class="tbadge" id="listaTabBadge" style="display:none;background:var(--accent);color:#0f0f13"></span></button>
+    <button class="tab active" data-tab="lista">📋 Lista <span class="tbadge" id="listaTabBadge" style="display:none;background:var(--lista-badge-color,var(--accent));color:#0f0f13"></span></button>
     <button class="tab" data-tab="kanban">🚦 Prioridade</button>
     <button class="tab" data-tab="agenda">📅 Agenda</button>
     <button class="tab" data-tab="planilha">📊 Planilha</button>
@@ -627,9 +628,9 @@ tr:hover td{background:var(--s3);}
     <button class="tab" data-tab="concluidas">✅ Concluídas</button>
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--accent2)"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
-    <button class="tab" data-tab="deslig">📋 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--urg)"></span></button>
+    <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
-    <button class="tab" data-tab="config">⚙️ Tema</button>
+    <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
 
   <div class="content">
@@ -712,6 +713,7 @@ tr:hover td{background:var(--s3);}
       </div>
       <div id="degSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
       <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
+      <div id="degMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="degList"></div>
     </div>
     <div class="view" id="view-notas">
@@ -739,6 +741,12 @@ tr:hover td{background:var(--s3);}
           <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Toda vez que uma tarefa <strong>Urgente</strong> ou <strong>Importante</strong> for criada, um e-mail é enviado para os endereços abaixo (via EmailJS).</p>
           <div id="notifEmailsConfig"></div>
         </div>
+        <div class="sc admin-only-el" style="display:none">
+          <h3>📦 Backup Completo</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Gera um arquivo com todos os dados do sistema, pra você guardar como cópia de segurança fora do app.</p>
+          <button id="btnBackupExcel" class="btn-save-m" style="width:100%;margin-bottom:8px">📊 Baixar Backup em Excel</button>
+          <p style="font-size:.62rem;color:var(--text3);line-height:1.5">💡 O backup em PDF não é recomendado aqui — com muitos dados, o PDF vira um documento gigante e difícil de usar. O Excel é o formato certo pra isso: cada tipo de dado (tarefas, membros, empresas, desligamentos, etc.) numa aba separada.</p>
+        </div>
         <div class="sc">
           <h3>🎨 Tema Pessoal</h3>
           <p style="font-size:.68rem;color:var(--text2);margin-bottom:9px">Cada membro tem seu próprio tema.</p>
@@ -758,7 +766,14 @@ tr:hover td{background:var(--s3);}
             <div class="color-row"><span class="cl">Destaque</span><input class="cinp" type="color" value="#c8a96e" data-var="--accent"></div>
             <div class="color-row"><span class="cl">Secundário</span><input class="cinp" type="color" value="#7c6fcd" data-var="--accent2"></div>
             <div class="color-row"><span class="cl">Fundo</span><input class="cinp" type="color" value="#080910" data-var="--bg"></div>
+            <div class="color-row"><span class="cl">Balão "Lista"</span><input class="cinp" type="color" value="#c8a96e" data-var="--lista-badge-color"></div>
+            <div class="color-row"><span class="cl">Balão "Desligamentos"</span><input class="cinp" type="color" value="#e05c5c" data-var="--deg-badge-color"></div>
           </div>
+        </div>
+        <div class="sc">
+          <h3>🏢 Cores das Empresas (pessoal)</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:9px">Só muda como você vê — os outros continuam vendo a cor padrão.</p>
+          <div id="empColorsPersonalConfig"></div>
         </div>
         <div class="sc">
           <h3>🚦 Prioridades</h3>
@@ -892,7 +907,38 @@ function formatSize(bytes){
   if(bytes<1024*1024)return(bytes/1024).toFixed(1)+" KB";
   return(bytes/(1024*1024)).toFixed(1)+" MB";
 }
-function getEmp(id){return empresas.find(e=>e.id===id)||{id:"outro",label:"Outro",color:"#606078"};}
+function getEmpColorOverrides(){
+  if(!user)return{};
+  try{return JSON.parse(localStorage.getItem("empColors_"+user.uid)||"{}");}catch(e){return{};}
+}
+function setEmpColorOverride(empId,color){
+  if(!user)return;
+  const overrides=getEmpColorOverrides();
+  overrides[empId]=color;
+  localStorage.setItem("empColors_"+user.uid,JSON.stringify(overrides));
+}
+function getEmp(id){
+  const base=empresas.find(e=>e.id===id)||{id:"outro",label:"Outro",color:"#606078"};
+  const overrides=getEmpColorOverrides();
+  if(overrides[id])return{...base,color:overrides[id]};
+  return base;
+}
+function renderEmpColorsPersonal(){
+  const c=document.getElementById("empColorsPersonalConfig");if(!c)return;
+  const overrides=getEmpColorOverrides();
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  c.innerHTML=vis.map(e=>{
+    const realColor=empresas.find(x=>x.id===e.id)?.color||e.color;
+    const shown=overrides[e.id]||realColor;
+    return`<div class="color-row"><span class="cl">${esc(e.label)}</span><div class="cprev" style="background:${shown}"></div><input class="cinp" type="color" value="${shown}" data-empcoloroverride="${e.id}"></div>`;
+  }).join("");
+  c.querySelectorAll("[data-empcoloroverride]").forEach(inp=>{
+    inp.addEventListener("input",()=>{
+      setEmpColorOverride(inp.dataset.empcoloroverride,inp.value);
+      renderAll();renderDesligamentos();renderEmpFilters();renderDegEmpFilters();renderEmpColorsPersonal();
+    });
+  });
+}
 function sortedMembers(){return [...members].sort((a,b)=>(a.order??0)-(b.order??0));}
 function taskEmps(t){return Array.isArray(t.emp)?t.emp:(t.emp?[t.emp]:[]);}
 function taskResps(t){return Array.isArray(t.resp)?t.resp:(t.resp?[t.resp]:[]);}
@@ -904,7 +950,48 @@ function getAudioCtx(){
   if(audioCtx.state==="suspended")audioCtx.resume();
   return audioCtx;
 }
+let notifMutedUntil=0;
+function isNotifMuted(){return Date.now()<notifMutedUntil;}
+
+function restorePopupPositions(){
+  if(!user)return;
+  ["deadlinePopup","weeklyDigestPopup","degDeadlinePopup"].forEach(id=>{
+    const popup=document.getElementById(id);if(!popup)return;
+    const saved=JSON.parse(localStorage.getItem("popupPos_"+id+"_"+user.uid)||"null");
+    if(saved){popup.style.left=saved.left;popup.style.top=saved.top;popup.style.right="auto";popup.style.bottom="auto";}
+  });
+}
+
+function makeDraggable(popupId){
+  const popup=document.getElementById(popupId);
+  const handle=popup?.querySelector(".popup-drag-handle");
+  if(!popup||!handle)return;
+  let dragging=false,offX=0,offY=0;
+  handle.addEventListener("mousedown",e=>{
+    dragging=true;
+    const rect=popup.getBoundingClientRect();
+    offX=e.clientX-rect.left;offY=e.clientY-rect.top;
+    popup.style.left=rect.left+"px";popup.style.top=rect.top+"px";
+    popup.style.right="auto";popup.style.bottom="auto";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove",e=>{
+    if(!dragging)return;
+    let x=e.clientX-offX,y=e.clientY-offY;
+    x=Math.max(4,Math.min(x,window.innerWidth-popup.offsetWidth-4));
+    y=Math.max(4,Math.min(y,window.innerHeight-popup.offsetHeight-4));
+    popup.style.left=x+"px";popup.style.top=y+"px";
+  });
+  document.addEventListener("mouseup",()=>{
+    if(!dragging)return;
+    dragging=false;
+    if(user)localStorage.setItem("popupPos_"+popupId+"_"+user.uid,JSON.stringify({left:popup.style.left,top:popup.style.top}));
+  });
+}
+["deadlinePopup","weeklyDigestPopup","degDeadlinePopup"].forEach(makeDraggable);
+
 function playChime(notes){
+  if(isNotifMuted())return;
   try{
     const ctx=getAudioCtx();
     notes.forEach(n=>{
@@ -1222,7 +1309,8 @@ onAuthStateChanged(auth, async u=>{
   if(u){
     user=u; isAdmin=u.email===ADMIN_EMAIL;
     await ensureMember(u);
-    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks();
+    notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
+    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
   } else {
     stopPresence();
     stopNotificationListeners();
@@ -1317,6 +1405,31 @@ document.getElementById("linkVoltarLogin").addEventListener("click",()=>showForm
 document.getElementById("btnLogout").addEventListener("click",()=>{stopListeners();signOut(auth);});
 document.getElementById("btnAdd").addEventListener("click",()=>openModal());
 document.getElementById("btnFocus").addEventListener("click",openFocus);
+
+let muteBtnInterval=null;
+function refreshMuteBtn(){
+  const btn=document.getElementById("btnMuteToggle");if(!btn)return;
+  if(isNotifMuted()){
+    const minsLeft=Math.ceil((notifMutedUntil-Date.now())/60000);
+    btn.textContent=`🔕 Silenciado (${minsLeft}min)`;
+    btn.style.background="rgba(224,92,92,.22)";
+    if(!muteBtnInterval)muteBtnInterval=setInterval(refreshMuteBtn,15000);
+  }else{
+    btn.textContent="🔕 Silenciar";
+    btn.style.background="rgba(224,92,92,.1)";
+    if(muteBtnInterval){clearInterval(muteBtnInterval);muteBtnInterval=null;}
+  }
+}
+document.getElementById("btnMuteToggle")?.addEventListener("click",()=>{
+  if(isNotifMuted()){
+    notifMutedUntil=0;
+  }else{
+    notifMutedUntil=Date.now()+60*60*1000; // 1 hora
+  }
+  if(user)localStorage.setItem("notifMutedUntil_"+user.uid,String(notifMutedUntil));
+  refreshMuteBtn();
+  updateDeadlinePopup();updateDegDeadlinePopup();
+});
 document.getElementById("btnCloseFocus").addEventListener("click",()=>document.getElementById("focusOv").classList.remove("open"));
 document.getElementById("btnCancelModal").addEventListener("click",closeModal);
 document.getElementById("btnSaveTask").addEventListener("click",saveTask);
@@ -1493,7 +1606,7 @@ function startListeners(){
   unsubEmp=onSnapshot(empRef,snap=>{
     if(snap.exists()&&snap.data().list?.length){
       empresas=[...snap.data().list].sort((a,b)=>(a.order||0)-(b.order||0));
-      renderEmpFilters(); renderEmpConfig(); renderEmpMultiSelect(); renderAll();
+      renderEmpFilters(); renderEmpConfig(); renderEmpMultiSelect(); renderEmpColorsPersonal(); renderDegEmpFilters(); renderAll();
     }
   });
   unsubT=onSnapshot(query(collection(db,"tasks"),orderBy("createdAt","desc")),snap=>{
@@ -1688,6 +1801,7 @@ function renderDeadlinePopupList(groups){
 
 function updateDeadlinePopup(){
   const popup=document.getElementById("deadlinePopup");if(!popup)return;
+  if(isNotifMuted()){popup.style.display="none";deadlinePopupVisible=false;return;}
   const groups=getDeadlineAlerts();
   const total=groups.overdue.length+groups.critical.length+groups.today.length+groups.tomorrow.length;
   if(!total){
@@ -3018,13 +3132,15 @@ function renderDesligamentos(){
   const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
   const hoje=today();
   const vencendoSemana=desligamentos.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento>=hoje&&d.vencimento<=addDaysToDate(hoje,7)).length;
-  if(summary)summary.textContent=`📋 ${pendentesTotal} pendente${pendentesTotal!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
+  if(summary)summary.textContent=`🚪 ${pendentesTotal} pendente${pendentesTotal!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
 
   const badge=document.getElementById("degTabBadge");
   if(badge){
     if(visD.length>0){badge.style.display="inline-flex";badge.textContent=visD.length;}
     else badge.style.display="none";
   }
+
+  renderDegMiniDash(visD);
 
   if(!visD.length){list.innerHTML='<div class="empty">Nenhum desligamento encontrado com esses filtros.</div>';return;}
 
@@ -3058,6 +3174,22 @@ function renderDesligamentos(){
       byFilial[filKey].items.sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")).forEach(d=>ct.appendChild(buildDegCard(d)));
     });
   });
+}
+
+function renderDegMiniDash(visD){
+  const c=document.getElementById("degMiniDash");if(!c)return;
+  const pendentes=visD.filter(d=>d.pagamento==="pendente").length;
+  const realizados=visD.filter(d=>d.pagamento==="realizado").length;
+  const atrasados=visD.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today()).length;
+  const porTipo={};
+  visD.forEach(d=>{const l=TIPO_DISPENSA_LABELS[d.tipo]||d.tipo;porTipo[l]=(porTipo[l]||0)+1;});
+  const tipoMaisComum=Object.entries(porTipo).sort((a,b)=>b[1]-a[1])[0];
+  c.innerHTML=[
+    {icon:"⏳",val:pendentes,lbl:"Pendentes"},
+    {icon:"✅",val:realizados,lbl:"Realizados"},
+    {icon:"⚠️",val:atrasados,lbl:"Atrasados"},
+    {icon:"📊",val:tipoMaisComum?tipoMaisComum[0]:"—",lbl:"Tipo mais comum"+(tipoMaisComum?` (${tipoMaisComum[1]})`:"")},
+  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:${typeof k.val==="string"&&k.val.length>6?"0.95rem":"1.7rem"}">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("");
 }
 
 function buildDegCard(d){
@@ -3113,6 +3245,7 @@ function getMostRecentMonday(){
 
 function showWeeklyDigestPopup(){
   const popup=document.getElementById("weeklyDigestPopup");if(!popup)return;
+  if(isNotifMuted())return;
   const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
   if(!pendentesTotal)return; // nada pendente, não incomoda
   const hoje=today();
@@ -3146,7 +3279,7 @@ async function sendWeeklyDigestEmailIfNeeded(dayKey){
       try{
         await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{
           to_email:email,
-          task_title:"📋 Resumo de Desligamentos",
+          task_title:"🚪 Resumo de Desligamentos",
           task_company:"Central Dias",
           task_priority:`${pendentesTotal} pendentes no total`,
           task_deadline:`${vencendoSemana} vencendo nos próximos 7 dias`,
@@ -3234,6 +3367,7 @@ function renderDegDeadlinePopupList(groups){
 
 function updateDegDeadlinePopup(){
   const popup=document.getElementById("degDeadlinePopup");if(!popup)return;
+  if(isNotifMuted()){popup.style.display="none";degDeadlinePopupVisible=false;return;}
   const groups=getDegDeadlineAlerts();
   const total=groups.atrasada.length+groups.alta.length+groups.media.length+groups.baixa.length;
   if(!total){
@@ -3408,6 +3542,46 @@ document.addEventListener("paste",async e=>{
   if(!rows.length){alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (Instituicao, Colaborador, etc.) e as linhas de dados.");return;}
   if(!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como desligamentos?`))return;
   await processDegImportRows([rows]);
+});
+
+document.getElementById("btnBackupExcel")?.addEventListener("click",()=>{
+  if(!isAdmin){alert("Só o Admin pode gerar o backup completo.");return;}
+  const wb=window.XLSX.utils.book_new();
+
+  const tarefasRows=tasks.map(t=>({
+    Titulo:t.tit,Detalhes:t.det||"",Empresas:taskEmps(t).map(id=>getEmp(id).label).join(", "),
+    Prioridade:PRIOS[t.prio]?.l||t.prio,Prazo:t.date?fmtD(t.date):"",Horario:t.hora||"",
+    Responsaveis:taskResps(t).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", "),
+    Concluida:t.done?"SIM":"NÃO",CriadoPor:members.find(m=>m.id===t.createdBy)?.name||t.createdBy||""
+  }));
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(tarefasRows.length?tarefasRows:[{Aviso:"Sem tarefas"}]),"Tarefas");
+
+  const histRows=activityLog.map(a=>({
+    Tipo:a.type,Tarefa:a.taskTit,Empresas:(Array.isArray(a.emp)?a.emp:a.emp?[a.emp]:[]).map(id=>getEmp(id).label).join(", "),
+    Prioridade:a.prio||"",Autor:a.actorName,Data:fmtDT(a.ts)
+  }));
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(histRows.length?histRows:[{Aviso:"Sem histórico"}]),"Historico");
+
+  const degRows=desligamentos.map(d=>{
+    const emp=getEmp(d.emp);
+    const filObj=filiais.find(f=>f.id===d.filial);
+    return{Instituicao:emp.label,Filial:filObj?filObj.label:"",Colaborador:d.colaborador,
+      Tipo:TIPO_DISPENSA_LABELS[d.tipo]||d.tipo,Inicio:d.inicio?fmtD(d.inicio):"-",Termino:fmtD(d.termino),
+      Vencimento:fmtD(d.vencimento),Pagamento:d.pagamento,Enviado:d.enviado?"SIM":"NÃO",Homologado:d.homologado?"SIM":"NÃO",
+      Descontos:d.descontos||"",Homologacao:d.homologData?fmtD(d.homologData):""};
+  });
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(degRows.length?degRows:[{Aviso:"Sem desligamentos"}]),"Desligamentos");
+
+  const membrosRows=members.map(m=>({Nome:m.name,Email:m.email,Cargo:m.role||"",Ordem:m.order??""}));
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(membrosRows.length?membrosRows:[{Aviso:"Sem membros"}]),"Membros");
+
+  const empresasRows=empresas.map(e=>({Nome:e.label,Cor:e.color,AdminOnly:e.adminOnly?"SIM":"NÃO",Ordem:e.order??""}));
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(empresasRows.length?empresasRows:[{Aviso:"Sem empresas"}]),"Empresas");
+
+  const filiaisRows=filiais.map(f=>({Empresa:getEmp(f.empId).label,Filial:f.label,Ordem:f.order??""}));
+  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(filiaisRows.length?filiaisRows:[{Aviso:"Sem filiais"}]),"Filiais");
+
+  window.XLSX.writeFile(wb,`backup_central_dias_${today()}.xlsx`);
 });
 
 function openDegReportModal(){
