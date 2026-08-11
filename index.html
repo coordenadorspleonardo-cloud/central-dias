@@ -415,6 +415,14 @@ tr:hover td{background:var(--s3);}
   <div id="weeklyDigestBody" style="padding:12px 14px;font-size:.78rem;color:var(--text);line-height:1.6;"></div>
 </div>
 
+<div id="degDeadlinePopup" style="display:none;position:fixed;bottom:20px;left:340px;z-index:500;width:300px;max-width:calc(100vw - 360px);background:var(--s2);border:1px solid #ff8040;border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
+  <div id="degDeadlinePopupHd" style="background:rgba(255,128,64,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <span style="font-size:.78rem;font-weight:700;color:#ff8040">📋 Rescisões vencendo (<span id="degDeadlinePopupCount">0</span>)</span>
+    <button id="btnCloseDegDeadline" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
+  </div>
+  <div id="degDeadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
+</div>
+
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
@@ -660,7 +668,8 @@ tr:hover td{background:var(--s3);}
         <div class="chat-main">
           <div class="chat-hd">
             <div class="chat-hd-av" style="background:rgba(200,169,110,.15);color:var(--accent)">CD</div>
-            <div><div class="chat-hd-name">Geral — Equipe Dias</div><div class="chat-hd-sub">Mensagens em tempo real</div></div>
+            <div style="flex:1"><div class="chat-hd-name">Geral — Equipe Dias</div><div class="chat-hd-sub">Mensagens em tempo real</div></div>
+            <button id="btnDeleteGroup" style="display:none;background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.25);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.68rem;padding:5px 10px;flex-shrink:0;">🗑 Excluir grupo</button>
           </div>
           <div class="chat-msgs" id="chatMsgs"></div>
           <div class="chat-inp-area" style="position:relative">
@@ -695,9 +704,14 @@ tr:hover td{background:var(--s3);}
           <button class="fp" data-degstatus="realizado">Realizados</button>
           <button class="fp" data-degstatus="all">Todos</button>
         </div>
-        <button id="btnNewDeslig" class="btn-save-m" style="margin-left:auto">＋ Novo Desligamento</button>
+        <button id="btnExportDeg" class="btn-cancel" style="margin-left:auto">📤 Exportar Excel</button>
+        <button id="btnDegReport" class="btn-cancel">📊 Relatório por Período</button>
+        <button id="btnImportDegTrigger" class="btn-cancel">📥 Importar Excel</button>
+        <input type="file" id="importDegFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnNewDeslig" class="btn-save-m">＋ Novo Desligamento</button>
       </div>
-      <div id="degSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="degSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
+      <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
       <div id="degList"></div>
     </div>
     <div class="view" id="view-notas">
@@ -772,7 +786,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc,
-  deleteDoc, onSnapshot, query, orderBy, where, serverTimestamp
+  deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── CONFIG ──
@@ -1208,11 +1222,12 @@ onAuthStateChanged(auth, async u=>{
   if(u){
     user=u; isAdmin=u.email===ADMIN_EMAIL;
     await ensureMember(u);
-    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks();
+    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks();
   } else {
     stopPresence();
     stopNotificationListeners();
     stopDeadlineChecks();
+    stopDegDeadlineChecks();
     user=null; isAdmin=false;
     stopListeners(); showLogin();
   }
@@ -1362,6 +1377,21 @@ document.getElementById("btnSaveTemplate").addEventListener("click",async()=>{
 document.getElementById("btnSendMsg").addEventListener("click",sendMsg);
 document.getElementById("searchInp").addEventListener("input",e=>{searchQ=e.target.value.toLowerCase().trim();renderAll();});
 document.getElementById("chatInp").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}});
+document.getElementById("chatInp").addEventListener("paste",async e=>{
+  const items=e.clipboardData?.items;
+  if(!items)return;
+  for(const item of items){
+    if(item.kind==="file"){
+      const file=item.getAsFile();
+      if(file){
+        e.preventDefault();
+        await uploadAndSend(file,"file");
+      }
+      return;
+    }
+  }
+  // se não tem arquivo/imagem no clipboard, deixa colar texto normalmente
+});
 document.getElementById("chatInp").addEventListener("input",function(){
   const val=this.value;
   const cursorPos=this.selectionStart;
@@ -1507,7 +1537,7 @@ function startListeners(){
   unsubTemplates=onSnapshot(collection(db,"task_templates"),snap=>{
     templates=snap.docs.map(d=>({id:d.id,...d.data()}));
   });
-  unsubActivity=onSnapshot(query(collection(db,"activity_log"),orderBy("ts","desc")),snap=>{
+  unsubActivity=onSnapshot(query(collection(db,"activity_log"),orderBy("ts","desc"),limit(300)),snap=>{
     activityLog=snap.docs.map(d=>({id:d.id,...d.data()})).filter(a=>isAdmin||!isLogAdminOnly(a));
     renderActivityLog();
   });
@@ -1526,7 +1556,7 @@ function startListeners(){
     renderNotes();
   });
   unsubFiliais=onSnapshot(collection(db,"filiais"),snap=>{
-    filiais=snap.docs.map(d=>({id:d.id,...d.data()}));
+    filiais=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
     renderFilialEmpSel();
     renderDesligamentos();
   });
@@ -1534,6 +1564,7 @@ function startListeners(){
     desligamentos=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderDesligamentos();
     checkWeeklyDigest();
+    updateDegDeadlinePopup();
   });
   renderDegEmpFilters();
 }
@@ -1575,6 +1606,9 @@ let deadlineCheckInterval=null;
 function soundDeadlineAlert(){playChime([{freq:740,start:0,dur:.18},{freq:932,start:.14,dur:.18},{freq:740,start:.3,dur:.26}]);} // hoje sem horário / amanhã
 function soundDeadlineCritical(){playChime([{freq:988,start:0,dur:.12},{freq:1244,start:.1,dur:.12},{freq:988,start:.2,dur:.12},{freq:1244,start:.3,dur:.22}]);} // vencendo em até 2h
 function soundOverdueAlert(){playChime([{freq:392,start:0,dur:.22},{freq:330,start:.2,dur:.32}]);} // atrasada
+function soundDegLow(){playChime([{freq:587,start:0,dur:.16},{freq:698,start:.13,dur:.2}]);} // rescisão: 6-10 dias
+function soundDegMed(){playChime([{freq:659,start:0,dur:.14},{freq:784,start:.1,dur:.14},{freq:659,start:.2,dur:.2}]);} // rescisão: 4-5 dias
+function soundDegHigh(){playChime([{freq:880,start:0,dur:.1},{freq:1046,start:.08,dur:.1},{freq:880,start:.16,dur:.1},{freq:1046,start:.24,dur:.24}]);} // rescisão: ≤3 dias / atrasada
 function soundCommentAdded(){playChime([{freq:440,start:0,dur:.1},{freq:554,start:.08,dur:.1},{freq:659,start:.16,dur:.22}]);}
 
 function getTaskDeadlineCategory(t){
@@ -1627,19 +1661,24 @@ function formatCountdown(ms){
   return`${h}:${String(m).padStart(2,"0")}`;
 }
 
+const PRIO_COLOR_VAR={urg:"var(--urg)",imp:"var(--imp)",nor:"var(--nor)",low:"var(--low)"};
+
 function renderDeadlinePopupList(groups){
   const list=document.getElementById("deadlinePopupList");if(!list)return;
-  const section=(items,label,colorVar,critical)=>{
+  const section=(items,label,headerColor,critical)=>{
     if(!items.length)return"";
-    return`<div style="font-size:.62rem;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
-      items.map(t=>`<div class="deadline-item" data-id="${t.id}">
-        <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(t.tit)}</div>
-        <div style="font-size:.66rem;color:${colorVar};margin-top:2px">${critical?`Falta ${formatCountdown(t._diffMs)} para o prazo (${esc(t.hora)})`:esc(dateBucketInfo(t.date).label)+(t.hora?" · 🕐"+esc(t.hora):"")}</div>
-      </div>`).join("");
+    return`<div style="font-size:.62rem;font-weight:700;color:${headerColor};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
+      items.map(t=>{
+        const pc=PRIO_COLOR_VAR[t.prio]||"var(--text2)";
+        return`<div class="deadline-item" data-id="${t.id}" style="border-left:3px solid ${pc}">
+          <div style="font-weight:600;font-size:.78rem;color:var(--text)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${pc};margin-right:5px;"></span>${esc(t.tit)}</div>
+          <div style="font-size:.66rem;color:${pc};margin-top:2px;margin-left:12px">${critical?`Falta ${formatCountdown(t._diffMs)} para o prazo (${esc(t.hora)})`:esc(dateBucketInfo(t.date).label)+(t.hora?" · 🕐"+esc(t.hora):"")}</div>
+        </div>`;
+      }).join("");
   };
   list.innerHTML=
-    section(groups.overdue,"⚠️ Atrasadas","var(--urg)")+
-    section(groups.critical,"⏰ Vencendo em até 2h","#ff8040",true)+
+    section(groups.overdue,"⚠️ Atrasadas","var(--text2)")+
+    section(groups.critical,"⏰ Vencendo em até 2h","var(--text2)",true)+
     section(groups.today,"📅 Hoje","var(--text2)")+
     section(groups.tomorrow,"🗓️ Amanhã","var(--text2)");
   list.querySelectorAll(".deadline-item").forEach(el=>{
@@ -2204,6 +2243,8 @@ function renderChat(){
   const hdSub=document.querySelector(".chat-hd-sub");
   const mc=document.getElementById("chatMsgs");
   if(!hdAv||!hdName||!hdSub||!mc)return;
+  const delGroupBtn=document.getElementById("btnDeleteGroup");
+  if(delGroupBtn)delGroupBtn.style.display="none";
 
   if(unsubDM){unsubDM();unsubDM=null;}
 
@@ -2255,6 +2296,18 @@ function renderChat(){
     if(g){
       hdName.textContent=g.name;
       hdSub.textContent=`${(g.members||[]).length} membros`;
+      if(delGroupBtn&&(isAdmin||g.createdBy===user?.uid)){
+        delGroupBtn.style.display="inline-block";
+        delGroupBtn.onclick=async()=>{
+          if(!confirm(`Excluir o grupo "${g.name}" e todas as mensagens dele? Isso não pode ser desfeito.`))return;
+          try{
+            const msnap=await getDocs(query(collection(db,"group_messages"),where("groupId","==",gid)));
+            for(const mdoc of msnap.docs)await deleteDoc(doc(db,"group_messages",mdoc.id));
+            await deleteDoc(doc(db,"group_chats",gid));
+            activeChat="group";renderMbrList();renderChat();
+          }catch(err){alert("Erro ao excluir grupo: "+err.message);}
+        };
+      }
     }else{
       hdName.textContent="🔒 Monitorando grupo";
       hdSub.textContent="Modo administrador — somente leitura";
@@ -2813,9 +2866,13 @@ function renderFiliaisConfig(){
   const c=document.getElementById("filiaisConfig");if(!c||!isAdmin)return;
   const empId=document.getElementById("filialEmpSel")?.value;
   if(!empId){c.innerHTML="";return;}
-  const list=filiais.filter(f=>f.empId===empId);
-  c.innerHTML=list.map(f=>`
+  const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  c.innerHTML=list.map((f,idx)=>`
     <div class="sc-emp-item">
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <button data-fup="${f.id}" ${idx===0?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===0?"var(--text3)":"var(--text2)"};cursor:${idx===0?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▲</button>
+        <button data-fdown="${f.id}" ${idx===list.length-1?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===list.length-1?"var(--text3)":"var(--text2)"};cursor:${idx===list.length-1?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▼</button>
+      </div>
       <span class="sc-emp-input">${esc(f.label)}</span>
       <button data-delfil="${f.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
     </div>`).join("")+
@@ -2829,21 +2886,39 @@ function renderFiliaisConfig(){
       try{await deleteDoc(doc(db,"filiais",btn.dataset.delfil));}catch(e){}
     });
   });
+  c.querySelectorAll("[data-fup]").forEach(btn=>{
+    btn.addEventListener("click",()=>moveFilial(btn.dataset.fup,-1,list));
+  });
+  c.querySelectorAll("[data-fdown]").forEach(btn=>{
+    btn.addEventListener("click",()=>moveFilial(btn.dataset.fdown,1,list));
+  });
   document.getElementById("btnAddFilial")?.addEventListener("click",async()=>{
     const inp=document.getElementById("newFilialName");
     const val=inp.value.trim();
     if(!val){alert("Informe o nome da filial.");return;}
     try{
-      await addDoc(collection(db,"filiais"),{empId,label:val,createdAt:serverTimestamp()});
+      await addDoc(collection(db,"filiais"),{empId,label:val,order:list.length,createdAt:serverTimestamp()});
       inp.value="";
     }catch(e){alert("Erro: "+e.message);}
   });
 }
 document.getElementById("filialEmpSel")?.addEventListener("change",renderFiliaisConfig);
 
+async function moveFilial(id,dir,list){
+  const idx=list.findIndex(f=>f.id===id);
+  const swapIdx=idx+dir;
+  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
+  const a=list[idx],b=list[swapIdx];
+  const orderA=a.order??idx, orderB=b.order??swapIdx;
+  try{
+    await updateDoc(doc(db,"filiais",a.id),{order:orderB});
+    await updateDoc(doc(db,"filiais",b.id),{order:orderA});
+  }catch(e){alert("Erro ao reordenar: "+e.message);}
+}
+
 function populateDegFilialSel(empId){
   const sel=document.getElementById("deg-filial");if(!sel)return;
-  const list=filiais.filter(f=>f.empId===empId);
+  const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
   sel.innerHTML='<option value="">— Nenhuma —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
 }
 document.getElementById("deg-emp")?.addEventListener("change",function(){populateDegFilialSel(this.value);});
@@ -2947,7 +3022,7 @@ function renderDesligamentos(){
 
   const badge=document.getElementById("degTabBadge");
   if(badge){
-    if(pendentesTotal>0){badge.style.display="inline-flex";badge.textContent=pendentesTotal;}
+    if(visD.length>0){badge.style.display="inline-flex";badge.textContent=visD.length;}
     else badge.style.display="none";
   }
 
@@ -2971,14 +3046,16 @@ function renderDesligamentos(){
     byEmp[empId].forEach(d=>{
       const filObj=filiais.find(f=>f.id===d.filial);
       const key=filObj?filObj.label:"Sem filial";
-      (byFilial[key]||(byFilial[key]=[])).push(d);
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(d);
     });
-    Object.keys(byFilial).sort().forEach(filKey=>{
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
       const filDiv=document.createElement("div");filDiv.className="section";
-      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
       empSection.appendChild(filDiv);
       const ct=filDiv.querySelector(".tasks-list");
-      byFilial[filKey].sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")).forEach(d=>ct.appendChild(buildDegCard(d)));
+      byFilial[filKey].items.sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")).forEach(d=>ct.appendChild(buildDegCard(d)));
     });
   });
 }
@@ -2995,6 +3072,8 @@ function buildDegCard(d){
       <div class="t-meta">
         <span class="tag" style="background:${d.pagamento==="realizado"?"rgba(76,175,125,.16)":"rgba(224,92,92,.16)"};color:${d.pagamento==="realizado"?"#5fdb9c":"#ff8a8a"}">${d.pagamento==="realizado"?"✅ Realizado":"⏳ Pendente"}</span>
         ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
+        ${canEdit?`<button class="tag deg-flag${d.enviado?" on":""}" data-flag="enviado" data-degid="${d.id}" style="cursor:pointer;background:${d.enviado?"rgba(76,175,125,.16)":"var(--s3)"};color:${d.enviado?"#5fdb9c":"var(--text2)"};border:1px solid ${d.enviado?"rgba(76,175,125,.3)":"var(--border)"}">${d.enviado?"✅":"⬜"} Enviado</button>`:`<span class="tag" style="background:var(--s3);color:var(--text2)">${d.enviado?"✅":"⬜"} Enviado</span>`}
+        ${canEdit?`<button class="tag deg-flag${d.homologado?" on":""}" data-flag="homologado" data-degid="${d.id}" style="cursor:pointer;background:${d.homologado?"rgba(76,175,125,.16)":"var(--s3)"};color:${d.homologado?"#5fdb9c":"var(--text2)"};border:1px solid ${d.homologado?"rgba(76,175,125,.3)":"var(--border)"}">${d.homologado?"✅":"⬜"} Homologado</button>`:`<span class="tag" style="background:var(--s3);color:var(--text2)">${d.homologado?"✅":"⬜"} Homologado</span>`}
         ${d.inicio?`<span class="tag" style="background:var(--s3);color:var(--text2)">Início ${fmtD(d.inicio)}</span>`:""}
         <span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(d.termino)}</span>
         <span class="tag" style="background:var(--s3);color:var(--text2)">Vencimento ${fmtD(d.vencimento)}</span>
@@ -3006,7 +3085,20 @@ function buildDegCard(d){
     </div>`;
   div.querySelector(".bi.edit")?.addEventListener("click",()=>openDegModal(d.id));
   div.querySelector(".bi.del")?.addEventListener("click",()=>deleteDeslig(d.id));
+  div.querySelectorAll(".deg-flag").forEach(btn=>{
+    btn.addEventListener("click",()=>toggleDegFlag(btn.dataset.degid,btn.dataset.flag));
+  });
   return div;
+}
+
+async function toggleDegFlag(id,field){
+  const d=desligamentos.find(x=>x.id===id);if(!d)return;
+  const newVal=!d[field];
+  const updates={[field]:newVal};
+  const enviado=field==="enviado"?newVal:!!d.enviado;
+  const homologado=field==="homologado"?newVal:!!d.homologado;
+  if(enviado&&homologado)updates.pagamento="realizado";
+  try{await updateDoc(doc(db,"desligamentos",id),updates);}catch(e){}
 }
 
 // ── RESUMO SEMANAL DE DESLIGAMENTOS (toda segunda-feira) ──
@@ -3038,45 +3130,391 @@ document.getElementById("btnCloseWeeklyDigest")?.addEventListener("click",()=>{
   document.getElementById("weeklyDigestPopup").style.display="none";
 });
 
-async function sendWeeklyDigestEmailIfNeeded(weekKey){
+async function sendWeeklyDigestEmailIfNeeded(dayKey){
   if(!window.emailjs||EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")!==-1)return;
   if(!notifEmails.length)return;
   try{
     const ref=doc(db,"config","desligamentos_digest");
     const snap=await getDoc(ref);
-    if(snap.exists()&&snap.data().lastSentWeek===weekKey)return; // já enviado essa semana
+    if(snap.exists()&&snap.data().lastSentDay===dayKey)return; // já enviado hoje
     const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
     if(!pendentesTotal)return;
-    await setDoc(ref,{lastSentWeek:weekKey});
+    await setDoc(ref,{lastSentDay:dayKey});
     const hoje=today();
     const vencendoSemana=desligamentos.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento>=hoje&&d.vencimento<=addDaysToDate(hoje,7)).length;
     for(const email of notifEmails){
       try{
         await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{
           to_email:email,
-          task_title:"📋 Resumo semanal de Desligamentos",
+          task_title:"📋 Resumo de Desligamentos",
           task_company:"Central Dias",
           task_priority:`${pendentesTotal} pendentes no total`,
           task_deadline:`${vencendoSemana} vencendo nos próximos 7 dias`,
           task_time:"—",task_watchers:"—",
-          created_by:"Resumo automático semanal"
+          created_by:"Resumo automático"
         });
-      }catch(e){console.error("Erro ao enviar resumo semanal para "+email,e);}
+      }catch(e){console.error("Erro ao enviar resumo para "+email,e);}
     }
   }catch(e){}
 }
 
+// ── POP-UP PRÓPRIO DE DESLIGAMENTOS (separado do de tarefas) ──
+let degDeadlineSnoozedUntil=0;
+let degDeadlinePopupVisible=false;
+let degDeadlineCheckInterval=null;
+
+function daysUntil(dateStr){
+  const[y,m,d]=dateStr.split("-").map(Number);
+  const target=new Date(y,m-1,d);
+  const now=new Date();
+  const todayMid=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  return Math.round((target-todayMid)/86400000);
+}
+
+function getDegDeadlineTier(d){
+  if(d.pagamento==="realizado"||!d.vencimento||!user)return null;
+  if(!isAdmin&&d.createdBy!==user.uid)return null; // avisa o admin sempre + quem cadastrou aquele desligamento
+  const diasRestantes=daysUntil(d.vencimento);
+  if(diasRestantes<0)return"atrasada";
+  if(diasRestantes<=3)return"alta"; // 0 a 3 dias
+  if(diasRestantes<=5)return"media"; // 4 a 5 dias
+  if(diasRestantes<=10)return"baixa"; // 6 a 10 dias
+  return null; // mais de 10 dias — ainda não entra no radar
+}
+
+function getDegDeadlineAlerts(){
+  const groups={atrasada:[],alta:[],media:[],baixa:[]};
+  if(!user)return groups;
+  (desligamentos||[]).forEach(d=>{
+    const tier=getDegDeadlineTier(d);
+    if(tier)groups[tier].push(d);
+  });
+  return groups;
+}
+
+function computeDegSnoozeMs(groups){
+  if(groups.alta.length||groups.atrasada.length)return 30*60*1000; // 30 min
+  if(groups.media.length)return 60*60*1000; // 1 hora
+  return 2*60*60*1000; // 2 horas
+}
+
+function pickDegAlertSound(groups){
+  if(groups.alta.length||groups.atrasada.length)return soundDegHigh;
+  if(groups.media.length)return soundDegMed;
+  return soundDegLow;
+}
+
+function renderDegDeadlinePopupList(groups){
+  const list=document.getElementById("degDeadlinePopupList");if(!list)return;
+  const section=(items,label,colorVar)=>{
+    if(!items.length)return"";
+    return`<div style="font-size:.62rem;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
+      items.map(d=>{
+        const emp=getEmp(d.emp);
+        const dias=daysUntil(d.vencimento);
+        const diasLabel=dias<0?`Atrasada há ${Math.abs(dias)} dia${Math.abs(dias)!==1?"s":""}`:dias===0?"Vence hoje":`Faltam ${dias} dia${dias!==1?"s":""}`;
+        return`<div class="deadline-item" data-degid="${d.id}">
+          <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(d.colaborador)} <span style="color:var(--text2);font-weight:400">(${esc(emp.label)})</span></div>
+          <div style="font-size:.66rem;color:${colorVar};margin-top:2px">${diasLabel} · Vencimento ${fmtD(d.vencimento)}</div>
+        </div>`;
+      }).join("");
+  };
+  list.innerHTML=
+    section(groups.atrasada,"⚠️ Atrasadas","var(--urg)")+
+    section(groups.alta,"🔴 Vencendo em até 3 dias","#ff4040")+
+    section(groups.media,"🟠 Vencendo em 4-5 dias","#ff8040")+
+    section(groups.baixa,"🟡 Vencendo em 6-10 dias","#e0c040");
+  list.querySelectorAll(".deadline-item").forEach(el=>{
+    el.addEventListener("click",()=>{
+      document.querySelector('[data-tab="deslig"]')?.click();
+      setTimeout(()=>openDegModal(el.dataset.degid),150);
+    });
+  });
+}
+
+function updateDegDeadlinePopup(){
+  const popup=document.getElementById("degDeadlinePopup");if(!popup)return;
+  const groups=getDegDeadlineAlerts();
+  const total=groups.atrasada.length+groups.alta.length+groups.media.length+groups.baixa.length;
+  if(!total){
+    popup.style.display="none";
+    degDeadlinePopupVisible=false;
+    return;
+  }
+  renderDegDeadlinePopupList(groups);
+  const countEl=document.getElementById("degDeadlinePopupCount");
+  if(countEl)countEl.textContent=total;
+  const hd=document.getElementById("degDeadlinePopupHd");
+  const borderColor=groups.alta.length||groups.atrasada.length?"var(--urg)":groups.media.length?"#ff8040":"#e0c040";
+  if(popup)popup.style.borderColor=borderColor;
+  if(Date.now()>=degDeadlineSnoozedUntil&&!degDeadlinePopupVisible){
+    popup.style.display="block";
+    degDeadlinePopupVisible=true;
+    pickDegAlertSound(groups)();
+  }
+}
+
+function startDegDeadlineChecks(){
+  updateDegDeadlinePopup();
+  degDeadlineCheckInterval=setInterval(updateDegDeadlinePopup,30*1000);
+}
+function stopDegDeadlineChecks(){
+  clearInterval(degDeadlineCheckInterval);
+  degDeadlineCheckInterval=null;
+  degDeadlineSnoozedUntil=0;
+  degDeadlinePopupVisible=false;
+  const popup=document.getElementById("degDeadlinePopup");
+  if(popup)popup.style.display="none";
+}
+document.getElementById("btnCloseDegDeadline")?.addEventListener("click",()=>{
+  document.getElementById("degDeadlinePopup").style.display="none";
+  degDeadlinePopupVisible=false;
+  degDeadlineSnoozedUntil=Date.now()+computeDegSnoozeMs(getDegDeadlineAlerts());
+});
+
 function checkWeeklyDigest(){
   if(!user)return;
-  if(new Date().getDay()!==1)return; // só roda às segundas-feiras
-  const weekKey=getMostRecentMonday();
+  const day=new Date().getDay();
+  if(day!==1&&day!==4)return; // segunda e quinta-feira
+  const todayKey=today();
   const localKey="degDigestShown_"+user.uid;
-  if(localStorage.getItem(localKey)!==weekKey){
+  if(localStorage.getItem(localKey)!==todayKey){
     showWeeklyDigestPopup();
-    localStorage.setItem(localKey,weekKey);
+    localStorage.setItem(localKey,todayKey);
   }
-  if(isAdmin)sendWeeklyDigestEmailIfNeeded(weekKey); // e-mail é disparado só pela sessão do Admin, evita permissão negada
+  if(isAdmin)sendWeeklyDigestEmailIfNeeded(todayKey); // e-mail é disparado só pela sessão do Admin, evita permissão negada
 }
+
+// ── EXPORTAR / IMPORTAR EXCEL DE DESLIGAMENTOS ──
+function getDegExportRows(){
+  let visD=desligamentos.filter(d=>isAdmin||!isTaskAdminOnly({emp:[d.emp]}));
+  if(degEmpFilter!=="all")visD=visD.filter(d=>d.emp===degEmpFilter);
+  if(degStatusFilter!=="all")visD=visD.filter(d=>d.pagamento===degStatusFilter);
+  return visD.map(d=>{
+    const emp=getEmp(d.emp);
+    const filObj=filiais.find(f=>f.id===d.filial);
+    return{
+      Instituicao:emp.label,
+      Filial:filObj?filObj.label:"",
+      Colaborador:d.colaborador,
+      "Tipo de Dispensa":TIPO_DISPENSA_LABELS[d.tipo]||d.tipo,
+      Inicio:d.inicio?fmtD(d.inicio):"-",
+      Termino:d.termino?fmtD(d.termino):"",
+      Vencimento:d.vencimento?fmtD(d.vencimento):"",
+      Pagamento:d.pagamento==="realizado"?"REALIZADO":"PENDENTE",
+      Descontos:d.descontos||"",
+      Homologacao:d.homologData?fmtD(d.homologData)+(d.homologHora?" às "+d.homologHora+"HRS":""):""
+    };
+  });
+}
+document.getElementById("btnExportDeg")?.addEventListener("click",()=>{
+  const rows=getDegExportRows();
+  if(!rows.length){alert("Nenhum desligamento encontrado com esses filtros.");return;}
+  const ws=window.XLSX.utils.json_to_sheet(rows);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Desligamentos");
+  window.XLSX.writeFile(wb,`desligamentos_central_dias_${today()}.xlsx`);
+});
+
+document.getElementById("btnImportDegTrigger")?.addEventListener("click",()=>document.getElementById("importDegFile").click());
+async function processDegImportRows(rowsBySheet){
+  let novos=0,ignorados=0,semEmpresa=0;
+  const empByLabel={};
+  empresas.forEach(em=>{empByLabel[em.label.trim().toUpperCase()]=em.id;});
+  for(const rows of rowsBySheet){
+    for(const row of rows){
+      const instRaw=(row["Instituicao"]||row["Instituição"]||row["INSTITUIÇÃO"]||"").toString().trim();
+      const colaborador=(row["Colaborador"]||row["COLABORADOR"]||"").toString().trim();
+      if(!instRaw||!colaborador){ignorados++;continue;}
+      const empId=empByLabel[instRaw.toUpperCase()];
+      if(!empId){semEmpresa++;continue;}
+      const filialRaw=(row["Filial"]||"").toString().trim();
+      let filialId="";
+      if(filialRaw){
+        const filObj=filiais.find(f=>f.empId===empId&&f.label.trim().toUpperCase()===filialRaw.toUpperCase());
+        filialId=filObj?filObj.id:"";
+      }
+      const tipoRaw=(row["Tipo de Dispensa"]||row["TIPO DE DISPENSA"]||"").toString().trim().toUpperCase();
+      let tipo="termino";
+      if(tipoRaw.includes("DEMISS"))tipo="demissao";
+      else if(tipoRaw.includes("QUEBRA"))tipo="quebra";
+      else if(tipoRaw.includes("INDENIZ"))tipo="indenizado";
+      else if(tipoRaw.includes("TRABALH"))tipo="trabalhado";
+      else if(tipoRaw.includes("TÉRMINO")||tipoRaw.includes("TERMINO"))tipo="termino";
+      const parseDate=v=>{
+        if(!v||v==="-")return"";
+        if(v instanceof Date)return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+        const s=v.toString().trim();
+        const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if(m)return`${m[3]}-${m[2]}-${m[1]}`;
+        return"";
+      };
+      const termino=parseDate(row["Termino"]||row["Término"]||row["TÉRMINO"]);
+      if(!termino){ignorados++;continue;}
+      const inicio=parseDate(row["Inicio"]||row["Início"]||row["INICIO"]);
+      let vencimento=parseDate(row["Vencimento"]||row["VENCIMENTO"]);
+      if(!vencimento)vencimento=addDaysToDate(termino,10);
+      const pagRaw=(row["Pagamento"]||row["PAGAMENTO"]||"").toString().trim().toUpperCase();
+      const pagamento=pagRaw.includes("REALIZ")?"realizado":"pendente";
+      const homologRaw=(row["Homologacao"]||row["Homologação"]||row["HOMOLOGAÇÃO"]||"").toString().trim();
+      let homologData="",homologHora="";
+      const hm=homologRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if(hm)homologData=`${hm[3]}-${hm[2]}-${hm[1]}`;
+      const ht=homologRaw.match(/(\d{2}):(\d{2})/);
+      if(ht)homologHora=`${ht[1]}:${ht[2]}`;
+      await addDoc(collection(db,"desligamentos"),{
+        emp:empId,filial:filialId,colaborador,tipo,inicio,termino,vencimento,pagamento,
+        descontos:(row["Descontos"]||row["DESCONTOS"]||"").toString().trim(),
+        homologData,homologHora,createdBy:user.uid,createdAt:serverTimestamp()
+      });
+      novos++;
+    }
+  }
+  alert(`Importação concluída!\n\n✅ ${novos} lançamento(s) importado(s)\n${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de empresa não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem colaborador, empresa ou data de término preenchidos`:""}`);
+}
+
+document.getElementById("importDegFile")?.addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  e.target.value="";
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=window.XLSX.read(buf,{type:"array"});
+    const rowsBySheet=wb.SheetNames.map(sn=>window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""}));
+    await processDegImportRows(rowsBySheet);
+  }catch(err){alert("Erro ao importar: "+err.message);}
+});
+
+// ── COLAR (Ctrl+V) DIRETO DO EXCEL NA ABA DESLIGAMENTOS ──
+function parseTSVToRows(text){
+  const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.length);
+  if(lines.length<2)return[];
+  const headers=lines[0].split("\t").map(h=>h.trim());
+  return lines.slice(1).map(line=>{
+    const cells=line.split("\t");
+    const obj={};
+    headers.forEach((h,i)=>{obj[h]=cells[i]!==undefined?cells[i]:"";});
+    return obj;
+  });
+}
+document.addEventListener("paste",async e=>{
+  const activeView=document.querySelector(".view.active");
+  if(!activeView||activeView.id!=="view-deslig")return;
+  if(["INPUT","TEXTAREA"].includes(e.target.tagName)||e.target.isContentEditable)return;
+  const text=e.clipboardData?.getData("text/plain")||"";
+  if(!text||!text.includes("\t"))return; // só age se parecer uma tabela colada do Excel (com tabulações)
+  e.preventDefault();
+  const rows=parseTSVToRows(text);
+  if(!rows.length){alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (Instituicao, Colaborador, etc.) e as linhas de dados.");return;}
+  if(!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como desligamentos?`))return;
+  await processDegImportRows([rows]);
+});
+
+function openDegReportModal(){
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:400px">
+    <h2>📊 Relatório de Desligamentos Realizados</h2>
+    <div class="fg full"><label>Período (baseado no Término)</label>
+      <select id="deg-rep-periodo">
+        <option value="all">Todo o período</option>
+        <option value="0">Hoje</option>
+        <option value="2">Últimos 2 dias</option>
+        <option value="3">Últimos 3 dias</option>
+        <option value="4">Últimos 4 dias</option>
+        <option value="5">Últimos 5 dias</option>
+        <option value="6">Últimos 6 dias</option>
+        <option value="7">Última semana</option>
+        <option value="14">Últimas 2 semanas</option>
+        <option value="21">Últimas 3 semanas</option>
+        <option value="28">Últimas 4 semanas</option>
+        <option value="30">Último mês</option>
+        <option value="60">Últimos 2 meses</option>
+        <option value="90">Últimos 3 meses</option>
+        <option value="180">Últimos 6 meses</option>
+        <option value="270">Últimos 9 meses</option>
+        <option value="365">Último ano</option>
+        <option value="custom">Personalizado</option>
+      </select>
+    </div>
+    <div class="fg-grid" id="deg-rep-custom-wrap" style="display:none;margin-top:9px">
+      <div class="fg"><label>De</label><input type="date" id="deg-rep-de"></div>
+      <div class="fg"><label>Até</label><input type="date" id="deg-rep-ate"></div>
+    </div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseDegReport">Cancelar</button>
+      <button class="btn-cancel" id="btnGenDegReportExcel">📊 Gerar Excel</button>
+      <button class="btn-save-m" id="btnGenDegReportPDF">📄 Gerar PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCloseDegReport").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#deg-rep-periodo").addEventListener("change",function(){
+    ov.querySelector("#deg-rep-custom-wrap").style.display=this.value==="custom"?"grid":"none";
+  });
+  function getFilteredDegRows(){
+    const periodo=ov.querySelector("#deg-rep-periodo").value;
+    let dateFrom=null,dateTo=null;
+    if(periodo==="custom"){
+      const de=ov.querySelector("#deg-rep-de").value;
+      const ate=ov.querySelector("#deg-rep-ate").value;
+      dateFrom=de||null;dateTo=ate||null;
+    }else if(periodo!=="all"){
+      dateFrom=addDaysToDate(today(),-Number(periodo));
+    }
+    let rows=desligamentos.filter(d=>isAdmin||!isTaskAdminOnly({emp:[d.emp]}));
+    rows=rows.filter(d=>d.pagamento==="realizado");
+    if(dateFrom)rows=rows.filter(d=>d.termino&&d.termino>=dateFrom);
+    if(dateTo)rows=rows.filter(d=>d.termino&&d.termino<=dateTo);
+    return rows;
+  }
+  function rowsToData(rows){
+    return rows.map(d=>{
+      const emp=getEmp(d.emp);
+      const filObj=filiais.find(f=>f.id===d.filial);
+      return{
+        Instituicao:emp.label,Filial:filObj?filObj.label:"",Colaborador:d.colaborador,
+        "Tipo de Dispensa":TIPO_DISPENSA_LABELS[d.tipo]||d.tipo,
+        Inicio:d.inicio?fmtD(d.inicio):"-",Termino:fmtD(d.termino),Vencimento:fmtD(d.vencimento),
+        Enviado:d.enviado?"SIM":"NÃO",Homologado:d.homologado?"SIM":"NÃO",
+        Descontos:d.descontos||"",
+        Homologacao:d.homologData?fmtD(d.homologData)+(d.homologHora?" às "+d.homologHora:""):""
+      };
+    });
+  }
+  ov.querySelector("#btnGenDegReportExcel").addEventListener("click",()=>{
+    const rows=getFilteredDegRows();
+    if(!rows.length){alert("Nenhum desligamento realizado encontrado nesse período.");return;}
+    const data=rowsToData(rows);
+    const ws=window.XLSX.utils.json_to_sheet(data);
+    const wb=window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb,ws,"Realizados");
+    window.XLSX.writeFile(wb,`relatorio_desligamentos_realizados_${today()}.xlsx`);
+    ov.remove();
+  });
+  ov.querySelector("#btnGenDegReportPDF").addEventListener("click",()=>{
+    const rows=getFilteredDegRows();
+    if(!rows.length){alert("Nenhum desligamento realizado encontrado nesse período.");return;}
+    const data=rowsToData(rows);
+    const{jsPDF}=window.jspdf;
+    const docPdf=new jsPDF({orientation:"landscape"});
+    docPdf.setFontSize(14);
+    docPdf.text("Relatório de Desligamentos Realizados — Central Dias",14,15);
+    docPdf.setFontSize(9);
+    docPdf.text(`Gerado em ${fmtD(today())}`,14,21);
+    docPdf.autoTable({
+      startY:26,
+      head:[["Instituição","Filial","Colaborador","Tipo","Início","Término","Vencimento","Enviado","Homologado","Descontos","Homologação"]],
+      body:data.map(d=>[d.Instituicao,d.Filial,d.Colaborador,d["Tipo de Dispensa"],d.Inicio,d.Termino,d.Vencimento,d.Enviado,d.Homologado,d.Descontos,d.Homologacao]),
+      styles:{fontSize:6.5},
+      headStyles:{fillColor:[26,31,54]}
+    });
+    docPdf.save(`relatorio_desligamentos_realizados_${today()}.pdf`);
+    ov.remove();
+  });
+}
+document.getElementById("btnDegReport")?.addEventListener("click",openDegReportModal);
 
 function renderNotes(){
   const grid=document.getElementById("notesGrid");if(!grid)return;
