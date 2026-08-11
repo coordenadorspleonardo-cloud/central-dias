@@ -407,6 +407,14 @@ tr:hover td{background:var(--s3);}
   <div id="deadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
 </div>
 
+<div id="weeklyDigestPopup" style="display:none;position:fixed;bottom:20px;left:20px;z-index:500;width:300px;max-width:calc(100vw - 24px);background:var(--s2);border:1px solid var(--accent2);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
+  <div style="background:rgba(124,111,205,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <span style="font-size:.78rem;font-weight:700;color:var(--accent2)">📋 Resumo semanal — Desligamentos</span>
+    <button id="btnCloseWeeklyDigest" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
+  </div>
+  <div id="weeklyDigestBody" style="padding:12px 14px;font-size:.78rem;color:var(--text);line-height:1.6;"></div>
+</div>
+
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
@@ -512,6 +520,47 @@ tr:hover td{background:var(--s3);}
     </div>
   </div>
 
+  <!-- MODAL DESLIGAMENTO -->
+  <div class="modal-ov" id="modalDegOv">
+    <div class="modal">
+      <h2 id="modalDegTitle">Novo Desligamento</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>Empresa *</label>
+          <select id="deg-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="deg-filial"><option value="">— Nenhuma —</option></select>
+        </div>
+        <div class="fg full"><label>Colaborador *</label><input type="text" id="deg-colab" placeholder="Nome do colaborador"></div>
+        <div class="fg full"><label>Tipo de Dispensa *</label>
+          <select id="deg-tipo">
+            <option value="termino">Término de Contrato</option>
+            <option value="demissao">Pedido de Demissão</option>
+            <option value="quebra">Quebra de Contrato</option>
+            <option value="indenizado">Aviso Indenizado</option>
+            <option value="trabalhado">Aviso Trabalhado</option>
+          </select>
+        </div>
+        <div class="fg"><label>Início</label><input type="date" id="deg-inicio"></div>
+        <div class="fg"><label>Término *</label><input type="date" id="deg-termino"></div>
+        <div class="fg"><label>Vencimento</label><input type="date" id="deg-vencimento"></div>
+        <div class="fg"><label>Pagamento</label>
+          <select id="deg-pagamento">
+            <option value="pendente">Pendente</option>
+            <option value="realizado">Realizado</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Descontos</label><input type="text" id="deg-descontos" placeholder="Ex: adiantamento, vale, etc. (opcional)"></div>
+        <div class="fg"><label>Data da Homologação</label><input type="date" id="deg-homolog-data"></div>
+        <div class="fg"><label>Horário da Homologação</label><input type="time" id="deg-homolog-hora"></div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelDegModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSaveDeg">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOCUS -->
   <div class="focus-overlay" id="focusOv">
     <div class="focus-hd">
@@ -570,6 +619,7 @@ tr:hover td{background:var(--s3);}
     <button class="tab" data-tab="concluidas">✅ Concluídas</button>
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--accent2)"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
+    <button class="tab" data-tab="deslig">📋 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--urg)"></span></button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Tema</button>
   </div>
@@ -633,6 +683,23 @@ tr:hover td{background:var(--s3);}
         </div>
       </div>
     </div>
+    <div class="view" id="view-deslig">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="degEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Status</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <button class="fp on" data-degstatus="pendente">Pendentes</button>
+          <button class="fp" data-degstatus="realizado">Realizados</button>
+          <button class="fp" data-degstatus="all">Todos</button>
+        </div>
+        <button id="btnNewDeslig" class="btn-save-m" style="margin-left:auto">＋ Novo Desligamento</button>
+      </div>
+      <div id="degSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="degList"></div>
+    </div>
     <div class="view" id="view-notas">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <p style="font-size:.72rem;color:var(--text2)">📝 Suas anotações pessoais — só você vê e edita as suas.</p>
@@ -646,6 +713,12 @@ tr:hover td{background:var(--s3);}
           <h3>🏢 Gerenciar Empresas</h3>
           <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Adicione, renomeie ou exclua empresas. Mudanças em tempo real.</p>
           <div id="empresaConfig"></div>
+        </div>
+        <div class="sc admin-only-el" style="display:none">
+          <h3>🏬 Gerenciar Filiais/Unidades</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Cadastre as filiais de cada empresa (usadas nos Desligamentos).</p>
+          <select id="filialEmpSel" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;margin-bottom:10px;"></select>
+          <div id="filiaisConfig"></div>
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📧 E-mails de Notificação de Tarefas</h3>
@@ -1452,8 +1525,19 @@ function startListeners(){
     notes=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderNotes();
   });
+  unsubFiliais=onSnapshot(collection(db,"filiais"),snap=>{
+    filiais=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderFilialEmpSel();
+    renderDesligamentos();
+  });
+  unsubDesligamentos=onSnapshot(collection(db,"desligamentos"),snap=>{
+    desligamentos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderDesligamentos();
+    checkWeeklyDigest();
+  });
+  renderDegEmpFilters();
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes,unsubFiliais,unsubDesligamentos].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -2699,6 +2783,300 @@ async function saveTask(){
 // ── E-MAIL DE TAREFA CRIADA (via EmailJS, para os e-mails cadastrados pelo Admin) ──
 let notes=[];
 let unsubNotes=null;
+let desligamentos=[];
+let unsubDesligamentos=null;
+let filiais=[];
+let unsubFiliais=null;
+let editDegId=null;
+let degStatusFilter="pendente";
+let degEmpFilter="all";
+
+const TIPO_DISPENSA_LABELS={termino:"Término de Contrato",demissao:"Pedido de Demissão",quebra:"Quebra de Contrato",indenizado:"Aviso Indenizado",trabalhado:"Aviso Trabalhado"};
+
+function addDaysToDate(dateStr,days){
+  const[y,m,d]=dateStr.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  dt.setDate(dt.getDate()+days);
+  return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+}
+
+function renderFilialEmpSel(){
+  const sel=document.getElementById("filialEmpSel");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}${e.adminOnly?" 🔒":""}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+  renderFiliaisConfig();
+}
+
+function renderFiliaisConfig(){
+  const c=document.getElementById("filiaisConfig");if(!c||!isAdmin)return;
+  const empId=document.getElementById("filialEmpSel")?.value;
+  if(!empId){c.innerHTML="";return;}
+  const list=filiais.filter(f=>f.empId===empId);
+  c.innerHTML=list.map(f=>`
+    <div class="sc-emp-item">
+      <span class="sc-emp-input">${esc(f.label)}</span>
+      <button data-delfil="${f.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+    </div>`).join("")+
+    `<div style="display:flex;gap:7px;margin-top:10px;">
+      <input type="text" id="newFilialName" placeholder="Nome da filial/unidade" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
+      <button id="btnAddFilial" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
+    </div>`;
+  c.querySelectorAll("[data-delfil]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!confirm("Excluir esta filial?"))return;
+      try{await deleteDoc(doc(db,"filiais",btn.dataset.delfil));}catch(e){}
+    });
+  });
+  document.getElementById("btnAddFilial")?.addEventListener("click",async()=>{
+    const inp=document.getElementById("newFilialName");
+    const val=inp.value.trim();
+    if(!val){alert("Informe o nome da filial.");return;}
+    try{
+      await addDoc(collection(db,"filiais"),{empId,label:val,createdAt:serverTimestamp()});
+      inp.value="";
+    }catch(e){alert("Erro: "+e.message);}
+  });
+}
+document.getElementById("filialEmpSel")?.addEventListener("change",renderFiliaisConfig);
+
+function populateDegFilialSel(empId){
+  const sel=document.getElementById("deg-filial");if(!sel)return;
+  const list=filiais.filter(f=>f.empId===empId);
+  sel.innerHTML='<option value="">— Nenhuma —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+document.getElementById("deg-emp")?.addEventListener("change",function(){populateDegFilialSel(this.value);});
+document.getElementById("deg-termino")?.addEventListener("change",function(){
+  const vencInp=document.getElementById("deg-vencimento");
+  if(this.value)vencInp.value=addDaysToDate(this.value,10);
+});
+
+function openDegModal(id){
+  editDegId=id||null;
+  const d=id?desligamentos.find(x=>x.id===id):null;
+  document.getElementById("modalDegTitle").textContent=d?"Editar Desligamento":"Novo Desligamento";
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  document.getElementById("deg-emp").innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  document.getElementById("deg-emp").value=d?d.emp:(vis[0]?.id||"");
+  populateDegFilialSel(document.getElementById("deg-emp").value);
+  document.getElementById("deg-filial").value=d?d.filial||"":"";
+  document.getElementById("deg-colab").value=d?d.colaborador:"";
+  document.getElementById("deg-tipo").value=d?d.tipo:"termino";
+  document.getElementById("deg-inicio").value=d?d.inicio||"":"";
+  document.getElementById("deg-termino").value=d?d.termino||"":"";
+  document.getElementById("deg-vencimento").value=d?d.vencimento||"":"";
+  document.getElementById("deg-pagamento").value=d?d.pagamento:"pendente";
+  document.getElementById("deg-descontos").value=d?d.descontos||"":"";
+  document.getElementById("deg-homolog-data").value=d?d.homologData||"":"";
+  document.getElementById("deg-homolog-hora").value=d?d.homologHora||"":"";
+  document.getElementById("modalDegOv").classList.add("open");
+}
+function closeDegModal(){document.getElementById("modalDegOv").classList.remove("open");editDegId=null;}
+document.getElementById("btnNewDeslig")?.addEventListener("click",()=>openDegModal());
+document.getElementById("btnCancelDegModal")?.addEventListener("click",closeDegModal);
+document.getElementById("modalDegOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closeDegModal();});
+
+document.getElementById("btnSaveDeg")?.addEventListener("click",async()=>{
+  const colaborador=document.getElementById("deg-colab").value.trim();
+  const termino=document.getElementById("deg-termino").value;
+  if(!colaborador){alert("Informe o nome do colaborador.");return;}
+  if(!termino){alert("Informe a data de término.");return;}
+  const data={
+    emp:document.getElementById("deg-emp").value,
+    filial:document.getElementById("deg-filial").value,
+    colaborador,
+    tipo:document.getElementById("deg-tipo").value,
+    inicio:document.getElementById("deg-inicio").value,
+    termino,
+    vencimento:document.getElementById("deg-vencimento").value||addDaysToDate(termino,10),
+    pagamento:document.getElementById("deg-pagamento").value,
+    descontos:document.getElementById("deg-descontos").value.trim(),
+    homologData:document.getElementById("deg-homolog-data").value,
+    homologHora:document.getElementById("deg-homolog-hora").value,
+    createdBy:user.uid
+  };
+  try{
+    if(editDegId){await updateDoc(doc(db,"desligamentos",editDegId),data);}
+    else{data.createdAt=serverTimestamp();await addDoc(collection(db,"desligamentos"),data);}
+    closeDegModal();
+  }catch(e){alert("Erro: "+e.message);}
+});
+
+async function deleteDeslig(id){
+  if(!confirm("Excluir este lançamento de desligamento?"))return;
+  try{await deleteDoc(doc(db,"desligamentos",id));}catch(e){}
+}
+
+function renderDegEmpFilters(){
+  const c=document.getElementById("degEmpFilters");if(!c)return;
+  const vis=empresas.filter(e=>isAdmin||!e.adminOnly);
+  c.innerHTML=`<button class="fp${degEmpFilter==="all"?" on":""}" data-degemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${degEmpFilter===e.id?" on":""}" data-degemp="${e.id}" style="${degEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll(".fp").forEach(btn=>{
+    btn.addEventListener("click",()=>{degEmpFilter=btn.dataset.degemp;renderDegEmpFilters();renderDesligamentos();});
+  });
+}
+document.querySelectorAll("[data-degstatus]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    degStatusFilter=btn.dataset.degstatus;
+    document.querySelectorAll("[data-degstatus]").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    renderDesligamentos();
+  });
+});
+
+function mesLabel(dateStr){
+  if(!dateStr)return"Sem data";
+  const[y,m]=dateStr.split("-");
+  const meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  return`${meses[+m-1]} ${y}`;
+}
+
+function renderDesligamentos(){
+  const list=document.getElementById("degList");if(!list)return;
+  let visD=desligamentos.filter(d=>isAdmin||!isTaskAdminOnly({emp:[d.emp]}));
+  if(degEmpFilter!=="all")visD=visD.filter(d=>d.emp===degEmpFilter);
+  if(degStatusFilter!=="all")visD=visD.filter(d=>d.pagamento===degStatusFilter);
+
+  const summary=document.getElementById("degSummary");
+  const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
+  const hoje=today();
+  const vencendoSemana=desligamentos.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento>=hoje&&d.vencimento<=addDaysToDate(hoje,7)).length;
+  if(summary)summary.textContent=`📋 ${pendentesTotal} pendente${pendentesTotal!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
+
+  const badge=document.getElementById("degTabBadge");
+  if(badge){
+    if(pendentesTotal>0){badge.style.display="inline-flex";badge.textContent=pendentesTotal;}
+    else badge.style.display="none";
+  }
+
+  if(!visD.length){list.innerHTML='<div class="empty">Nenhum desligamento encontrado com esses filtros.</div>';return;}
+
+  const byEmp={};
+  visD.forEach(d=>{(byEmp[d.emp]||(byEmp[d.emp]=[])).push(d);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    empSection.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44">
+      <div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+    </div>`;
+    list.appendChild(empSection);
+
+    const byFilial={};
+    byEmp[empId].forEach(d=>{
+      const filObj=filiais.find(f=>f.id===d.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      (byFilial[key]||(byFilial[key]=[])).push(d);
+    });
+    Object.keys(byFilial).sort().forEach(filKey=>{
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
+      empSection.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      byFilial[filKey].sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")).forEach(d=>ct.appendChild(buildDegCard(d)));
+    });
+  });
+}
+
+function buildDegCard(d){
+  const canEdit=isAdmin||d.createdBy===user?.uid;
+  const overdue=d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today();
+  const div=document.createElement("div");
+  div.className=`task${overdue?" overdue":""}`;
+  div.innerHTML=`
+    <div class="t-body">
+      <div class="t-title">${esc(d.colaborador)}</div>
+      <div class="t-detail">${TIPO_DISPENSA_LABELS[d.tipo]||d.tipo}${d.descontos?" · Descontos: "+esc(d.descontos):""}</div>
+      <div class="t-meta">
+        <span class="tag" style="background:${d.pagamento==="realizado"?"rgba(76,175,125,.16)":"rgba(224,92,92,.16)"};color:${d.pagamento==="realizado"?"#5fdb9c":"#ff8a8a"}">${d.pagamento==="realizado"?"✅ Realizado":"⏳ Pendente"}</span>
+        ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
+        ${d.inicio?`<span class="tag" style="background:var(--s3);color:var(--text2)">Início ${fmtD(d.inicio)}</span>`:""}
+        <span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(d.termino)}</span>
+        <span class="tag" style="background:var(--s3);color:var(--text2)">Vencimento ${fmtD(d.vencimento)}</span>
+        ${d.homologData?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">Homologação ${fmtD(d.homologData)}${d.homologHora?" · "+d.homologHora:""}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  div.querySelector(".bi.edit")?.addEventListener("click",()=>openDegModal(d.id));
+  div.querySelector(".bi.del")?.addEventListener("click",()=>deleteDeslig(d.id));
+  return div;
+}
+
+// ── RESUMO SEMANAL DE DESLIGAMENTOS (toda segunda-feira) ──
+function getMostRecentMonday(){
+  const d=new Date();
+  const day=d.getDay(); // 0=domingo ... 6=sábado
+  const diff=day===0?6:day-1;
+  const monday=new Date(d);
+  monday.setDate(d.getDate()-diff);
+  return`${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,"0")}-${String(monday.getDate()).padStart(2,"0")}`;
+}
+
+function showWeeklyDigestPopup(){
+  const popup=document.getElementById("weeklyDigestPopup");if(!popup)return;
+  const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
+  if(!pendentesTotal)return; // nada pendente, não incomoda
+  const hoje=today();
+  const vencendoSemana=desligamentos.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento>=hoje&&d.vencimento<=addDaysToDate(hoje,7)).length;
+  const body=document.getElementById("weeklyDigestBody");
+  if(body)body.innerHTML=`Você tem <strong>${pendentesTotal}</strong> desligamento${pendentesTotal!==1?"s":""} pendente${pendentesTotal!==1?"s":""} de pagamento — <strong>${vencendoSemana}</strong> vencendo nos próximos 7 dias.<br><br><button id="btnGoToDeslig" class="btn-save-m" style="width:100%">Ver Desligamentos</button>`;
+  popup.style.display="block";
+  soundDeadlineAlert();
+  document.getElementById("btnGoToDeslig")?.addEventListener("click",()=>{
+    popup.style.display="none";
+    document.querySelector('[data-tab="deslig"]')?.click();
+  });
+}
+document.getElementById("btnCloseWeeklyDigest")?.addEventListener("click",()=>{
+  document.getElementById("weeklyDigestPopup").style.display="none";
+});
+
+async function sendWeeklyDigestEmailIfNeeded(weekKey){
+  if(!window.emailjs||EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")!==-1)return;
+  if(!notifEmails.length)return;
+  try{
+    const ref=doc(db,"config","desligamentos_digest");
+    const snap=await getDoc(ref);
+    if(snap.exists()&&snap.data().lastSentWeek===weekKey)return; // já enviado essa semana
+    const pendentesTotal=desligamentos.filter(d=>d.pagamento==="pendente").length;
+    if(!pendentesTotal)return;
+    await setDoc(ref,{lastSentWeek:weekKey});
+    const hoje=today();
+    const vencendoSemana=desligamentos.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento>=hoje&&d.vencimento<=addDaysToDate(hoje,7)).length;
+    for(const email of notifEmails){
+      try{
+        await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{
+          to_email:email,
+          task_title:"📋 Resumo semanal de Desligamentos",
+          task_company:"Central Dias",
+          task_priority:`${pendentesTotal} pendentes no total`,
+          task_deadline:`${vencendoSemana} vencendo nos próximos 7 dias`,
+          task_time:"—",task_watchers:"—",
+          created_by:"Resumo automático semanal"
+        });
+      }catch(e){console.error("Erro ao enviar resumo semanal para "+email,e);}
+    }
+  }catch(e){}
+}
+
+function checkWeeklyDigest(){
+  if(!user)return;
+  if(new Date().getDay()!==1)return; // só roda às segundas-feiras
+  const weekKey=getMostRecentMonday();
+  const localKey="degDigestShown_"+user.uid;
+  if(localStorage.getItem(localKey)!==weekKey){
+    showWeeklyDigestPopup();
+    localStorage.setItem(localKey,weekKey);
+  }
+  if(isAdmin)sendWeeklyDigestEmailIfNeeded(weekKey); // e-mail é disparado só pela sessão do Admin, evita permissão negada
+}
 
 function renderNotes(){
   const grid=document.getElementById("notesGrid");if(!grid)return;
