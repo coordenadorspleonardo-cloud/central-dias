@@ -2148,8 +2148,8 @@ function buildCard(t){
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="background:${resp.color}">${resp.ini||"?"}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
-        ${t.precisaConferencia?taskFlagBtn(t,"realizado","Realizado",canEdit):""}
-        ${t.precisaConferencia?taskFlagBtn(t,"conferido","Conferido",canEdit):""}
+        ${taskFlagBtn(t,"realizado","Realizado",canEdit)}
+        ${taskFlagBtn(t,"conferido","Conferido",canEdit)}
         ${cmts>0?`<span class="tag cmt-badge">💬 ${cmts} coment${cmts!==1?"ários":"ário"}</span>`:""}
         <div class="t-date-w">📅<input type="date" value="${t.date||""}" ${!canEdit?"disabled":""}></div>
         <div class="t-date-w">🕐<input type="time" value="${t.hora||""}" ${!canEdit?"disabled":""}></div>
@@ -2827,16 +2827,10 @@ function nextRecurrenceDate(dateStr,type){
 }
 async function toggleTaskConfFlag(id,field){
   const t=tasks.find(x=>x.id===id);if(!t)return;
+  if(!(isAdmin||t.createdBy===user?.uid))return; // só quem criou a tarefa ou o Admin
   const newVal=!t[field];
-  const updates={[field]:newVal};
-  const realizado=field==="realizado"?newVal:!!t.realizado;
-  const conferido=field==="conferido"?newVal:!!t.conferido;
-  const nowDone=realizado&&conferido;
-  updates.done=nowDone;
-  updates.doneAt=nowDone?serverTimestamp():null;
   try{
-    await updateDoc(doc(db,"tasks",id),updates);
-    logActivity(nowDone?"completed":"reopened",t);
+    await updateDoc(doc(db,"tasks",id),{[field]:newVal}); // marcação independente — não altera "Concluída"
   }catch(e){}
 }
 
@@ -3402,6 +3396,7 @@ function buildDegCard(d){
 
 async function toggleDegFlag(id,field){
   const d=desligamentos.find(x=>x.id===id);if(!d)return;
+  if(!(isAdmin||d.createdBy===user?.uid))return; // só quem cadastrou o desligamento ou o Admin
   const newVal=!d[field];
   const updates={[field]:newVal};
   const feito=field==="feito"?newVal:!!d.feito;
