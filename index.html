@@ -503,6 +503,15 @@ tr:hover td{background:var(--s3);}
             <div id="f-watch-drop" class="multisel-drop" style="display:none"></div>
           </div>
         </div>
+        <div class="fg full">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="f-precisa-conf" style="width:14px;height:14px;accent-color:var(--accent);">Necessita conferência?</label>
+          <div id="f-conf-wrap" style="display:none;margin-top:6px;">
+            <div class="multisel-wrap">
+              <button type="button" id="f-conf-btn" class="multisel-btn">Quem deve conferir</button>
+              <div id="f-conf-drop" class="multisel-drop" style="display:none"></div>
+            </div>
+          </div>
+        </div>
         <div class="fg"><label>Repetir</label>
           <select id="f-recur">
             <option value="">Não repetir</option>
@@ -850,7 +859,7 @@ let unreadSoundTimer=null;
 
 let user=null, isAdmin=false, tasks=[], msgs=[], members=[], empresas=[];
 let empFilter="all", respFilter="all", searchQ="", editId=null;
-let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[];
+let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[];
 let unsubT=null, unsubM=null, unsubMbr=null, unsubEmp=null, unsubPresence=null;
 let presenceData={};
 
@@ -2110,6 +2119,13 @@ function renderLista(){
   if(!anyRendered)c.innerHTML='<div class="empty">Nenhuma tarefa. Clique em ＋ Nova Tarefa!</div>';
 }
 
+function taskFlagBtn(t,field,label,canEdit){
+  const on=!!t[field];
+  const style=`background:${on?"rgba(76,175,125,.16)":"var(--s3)"};color:${on?"#5fdb9c":"var(--text2)"};border:1px solid ${on?"rgba(76,175,125,.3)":"var(--border)"}`;
+  if(canEdit)return`<button class="tag task-flag${on?" on":""}" data-tflag="${field}" data-taskid="${t.id}" style="cursor:pointer;${style}">${on?"✅":"⬜"} ${label}</button>`;
+  return`<span class="tag" style="${style}">${on?"✅":"⬜"} ${label}</span>`;
+}
+
 function buildCard(t){
   const emps=taskEmps(t).map(id=>getEmp(id));
   const primaryEmp=emps[0]||{color:"#606078"};
@@ -2132,6 +2148,8 @@ function buildCard(t){
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="background:${resp.color}">${resp.ini||"?"}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
+        ${t.precisaConferencia?taskFlagBtn(t,"realizado","Realizado",canEdit):""}
+        ${t.precisaConferencia?taskFlagBtn(t,"conferido","Conferido",canEdit):""}
         ${cmts>0?`<span class="tag cmt-badge">💬 ${cmts} coment${cmts!==1?"ários":"ário"}</span>`:""}
         <div class="t-date-w">📅<input type="date" value="${t.date||""}" ${!canEdit?"disabled":""}></div>
         <div class="t-date-w">🕐<input type="time" value="${t.hora||""}" ${!canEdit?"disabled":""}></div>
@@ -2164,9 +2182,7 @@ function buildCard(t){
     if(pselEl)pselEl.addEventListener("change",()=>saveInline(t.id,"prio",pselEl));
     div.querySelector(".btn-postpone")?.addEventListener("click",e=>{
       e.stopPropagation();
-      const dateInp=div.querySelector("input[type=date]");
-      dateInp.focus();
-      try{dateInp.showPicker();}catch(err){}
+      openPostponeModal(t.id);
     });
   }
 
@@ -2180,6 +2196,9 @@ function buildCard(t){
   });
   div.querySelectorAll(".cmt-del").forEach(btn=>{
     btn.addEventListener("click",e=>{e.stopPropagation();deleteComment(t.id,+btn.dataset.cidx);});
+  });
+  div.querySelectorAll(".task-flag").forEach(btn=>{
+    btn.addEventListener("click",e=>{e.stopPropagation();toggleTaskConfFlag(btn.dataset.taskid,btn.dataset.tflag);});
   });
   div.querySelector(".bi.edit")?.addEventListener("click",()=>openModal(t.id));
   div.querySelector(".bi.del")?.addEventListener("click",()=>delTask(t.id));
@@ -2760,15 +2779,44 @@ document.getElementById("f-watch-btn")?.addEventListener("click",e=>{
   document.getElementById("f-resp-drop").style.display="none";
 });
 
+function renderConfMultiSelect(){
+  const drop=document.getElementById("f-conf-drop");const btn=document.getElementById("f-conf-btn");
+  if(!drop||!btn)return;
+  drop.innerHTML=sortedMembers().map(m=>`<label class="multisel-opt"><input type="checkbox" data-conf-opt="${m.id}" ${modalSelectedConferentes.includes(m.id)?"checked":""}>${esc(m.name)}${m.role==="Admin"?" (Admin)":""}</label>`).join("")||'<div style="padding:6px;font-size:.72rem;color:var(--text3)">Nenhum membro.</div>';
+  drop.querySelectorAll("[data-conf-opt]").forEach(cb=>{
+    cb.addEventListener("change",function(){
+      const id=this.dataset.confOpt;
+      if(this.checked){if(!modalSelectedConferentes.includes(id))modalSelectedConferentes.push(id);}
+      else{modalSelectedConferentes=modalSelectedConferentes.filter(x=>x!==id);}
+      renderConfMultiSelect();
+    });
+  });
+  const names=modalSelectedConferentes.map(id=>members.find(m=>m.id===id)?.name).filter(Boolean);
+  btn.textContent=names.length?"🔍 "+names.join(", "):"Quem deve conferir";
+}
+document.getElementById("f-conf-btn")?.addEventListener("click",e=>{
+  e.stopPropagation();
+  const drop=document.getElementById("f-conf-drop");
+  drop.style.display=drop.style.display==="none"?"block":"none";
+  document.getElementById("f-emp-drop").style.display="none";
+  document.getElementById("f-resp-drop").style.display="none";
+  document.getElementById("f-watch-drop").style.display="none";
+});
+document.getElementById("f-precisa-conf")?.addEventListener("change",function(){
+  document.getElementById("f-conf-wrap").style.display=this.checked?"block":"none";
+});
+
 document.addEventListener("click",()=>{
-  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop");
+  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop"),d4=document.getElementById("f-conf-drop");
   if(d1)d1.style.display="none";
   if(d2)d2.style.display="none";
   if(d3)d3.style.display="none";
+  if(d4)d4.style.display="none";
 });
 document.getElementById("f-emp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-resp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-watch-drop")?.addEventListener("click",e=>e.stopPropagation());
+document.getElementById("f-conf-drop")?.addEventListener("click",e=>e.stopPropagation());
 
 function nextRecurrenceDate(dateStr,type){
   const d=new Date((dateStr||today())+"T00:00:00");
@@ -2777,6 +2825,21 @@ function nextRecurrenceDate(dateStr,type){
   else if(type==="monthly")d.setMonth(d.getMonth()+1);
   return d.toISOString().split("T")[0];
 }
+async function toggleTaskConfFlag(id,field){
+  const t=tasks.find(x=>x.id===id);if(!t)return;
+  const newVal=!t[field];
+  const updates={[field]:newVal};
+  const realizado=field==="realizado"?newVal:!!t.realizado;
+  const conferido=field==="conferido"?newVal:!!t.conferido;
+  const nowDone=realizado&&conferido;
+  updates.done=nowDone;
+  updates.doneAt=nowDone?serverTimestamp():null;
+  try{
+    await updateDoc(doc(db,"tasks",id),updates);
+    logActivity(nowDone?"completed":"reopened",t);
+  }catch(e){}
+}
+
 async function toggleDone(id){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   const newDone=!t.done;
@@ -2858,6 +2921,37 @@ async function sendMsg(){
   }catch(e){}
 }
 
+function openPostponeModal(taskId){
+  const t=tasks.find(x=>x.id===taskId);if(!t)return;
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:380px">
+    <h2>📅 Prorrogar prazo</h2>
+    <div class="fg full" style="margin-bottom:10px"><label>Nova data</label><input type="date" id="postpone-date" value="${t.date||""}"></div>
+    <div class="fg full"><label>Justificativa *</label><textarea id="postpone-motivo" placeholder="Por que o prazo está sendo prorrogado?"></textarea></div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCancelPostpone">Cancelar</button>
+      <button class="btn-save-m" id="btnConfirmPostpone">Salvar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCancelPostpone").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnConfirmPostpone").addEventListener("click",async()=>{
+    const novaData=ov.querySelector("#postpone-date").value;
+    const motivo=ov.querySelector("#postpone-motivo").value.trim();
+    if(!novaData){alert("Selecione a nova data.");return;}
+    if(!motivo){alert("A justificativa é obrigatória para prorrogar o prazo.");return;}
+    const dataAntiga=t.date?fmtD(t.date):"sem data";
+    try{
+      await updateDoc(doc(db,"tasks",taskId),{date:novaData});
+      const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text:`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)}. Motivo: ${motivo}`,ts:Date.now()}];
+      await updateDoc(doc(db,"tasks",taskId),{cmts});
+      ov.remove();
+    }catch(e){alert("Erro: "+e.message);}
+  });
+}
+
 function openPreview(id){
   const t=tasks.find(x=>x.id===id);if(!t)return;
   const emps=taskEmps(t).map(eid=>getEmp(eid));
@@ -2929,9 +3023,13 @@ function openModal(id){
   modalSelectedEmps=t?taskEmps(t):[];
   modalSelectedResps=t?taskResps(t):[];
   modalSelectedWatchers=t?(t.watchers||[]):[];
+  modalSelectedConferentes=t?(t.conferentes||[]):[];
+  document.getElementById("f-precisa-conf").checked=t?!!t.precisaConferencia:false;
+  document.getElementById("f-conf-wrap").style.display=(t&&t.precisaConferencia)?"block":"none";
   renderEmpMultiSelect();
   renderRespMultiSelect();
   renderWatchMultiSelect();
+  renderConfMultiSelect();
   document.getElementById("modalOv").classList.add("open");
   setTimeout(()=>document.getElementById("f-tit").focus(),80);
 }
@@ -2943,6 +3041,7 @@ async function saveTask(){
   if(!tit){alert("Informe o título.");return;}
   if(!modalSelectedEmps.length){alert("Selecione ao menos uma empresa.");return;}
   const recurVal=document.getElementById("f-recur").value;
+  const precisaConferencia=document.getElementById("f-precisa-conf").checked;
   const data={tit,det:document.getElementById("f-det").value.trim(),
     emp:[...modalSelectedEmps],
     prio:document.getElementById("f-prio").value,
@@ -2950,11 +3049,15 @@ async function saveTask(){
     hora:document.getElementById("f-hora").value||"",
     resp:[...modalSelectedResps],
     watchers:[...modalSelectedWatchers],
+    precisaConferencia,
+    conferentes:precisaConferencia?[...modalSelectedConferentes]:[],
     recurrence:recurVal?{type:recurVal}:null,
-    done:false,doneAt:null,createdBy:user.uid};
+    createdBy:user.uid};
   try{
-    if(editId){await updateDoc(doc(db,"tasks",editId),data);}
-    else{
+    if(editId){
+      await updateDoc(doc(db,"tasks",editId),data); // não mexe em done/doneAt/realizado/conferido de uma tarefa já existente
+    }else{
+      data.done=false;data.doneAt=null;data.realizado=false;data.conferido=false;
       data.createdAt=serverTimestamp();data.cmts=[];
       await addDoc(collection(db,"tasks"),data);
       logActivity("created",data);
@@ -3058,6 +3161,49 @@ document.getElementById("deg-termino")?.addEventListener("change",function(){
   if(this.value)vencInp.value=addDaysToDate(this.value,10);
 });
 
+function openDegPreview(id){
+  const d=desligamentos.find(x=>x.id===id);if(!d)return;
+  const emp=getEmp(d.emp);
+  const filObj=filiais.find(f=>f.id===d.filial);
+  const canEdit=isAdmin||d.createdBy===user?.uid;
+  const overdue=d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today();
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:460px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+      <h2 style="margin-bottom:0">${esc(d.colaborador)}</h2>
+      <span class="tag" style="background:${d.pagamento==="realizado"?"rgba(76,175,125,.16)":"rgba(224,92,92,.16)"};color:${d.pagamento==="realizado"?"#5fdb9c":"#ff8a8a"};flex-shrink:0">${d.pagamento==="realizado"?"✅ Realizado":"⏳ Pendente"}</span>
+    </div>
+    <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px">${esc(TIPO_DISPENSA_LABELS[d.tipo]||d.tipo)}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+      <span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>
+      ${filObj?`<span class="tag" style="background:var(--s3);color:var(--text2)">${esc(filObj.label)}</span>`:""}
+      ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+      ${degFlagBtn(d,"feito","Feito",false)}
+      ${degFlagBtn(d,"confLeo","Conferência Leo",false)}
+      ${degFlagBtn(d,"enviado","Enviado",false)}
+      ${degFlagBtn(d,"homologado","Homologado",false)}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px;font-size:.78rem;color:var(--text2);margin-bottom:14px">
+      ${d.inicio?`<div>📅 Início: ${fmtD(d.inicio)}</div>`:""}
+      <div>📅 Término: ${fmtD(d.termino)}</div>
+      <div>⏰ Vencimento: ${fmtD(d.vencimento)}</div>
+      ${d.homologData?`<div>👁️ Homologação: ${fmtD(d.homologData)}${d.homologHora?" às "+esc(d.homologHora):""}</div>`:""}
+      ${d.descontos?`<div>💰 Descontos: ${esc(d.descontos)}</div>`:""}
+    </div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseDegPreview">Fechar</button>
+      ${canEdit?`<button class="btn-save-m" id="btnEditFromDegPreview">✏️ Editar</button>`:""}
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCloseDegPreview").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnEditFromDegPreview")?.addEventListener("click",()=>{ov.remove();openDegModal(d.id);});
+}
+
 function openDegModal(id){
   editDegId=id||null;
   const d=id?desligamentos.find(x=>x.id===id):null;
@@ -3142,7 +3288,8 @@ function mesLabel(dateStr){
 function renderDesligamentos(){
   const list=document.getElementById("degList");if(!list)return;
   let visD=desligamentos.filter(d=>isAdmin||!isTaskAdminOnly({emp:[d.emp]}));
-  if(degEmpFilter!=="all")visD=visD.filter(d=>d.emp===degEmpFilter);
+  let visDForDash=visD; // filtrado só por empresa, sem o filtro de status — usado no mini-dashboard
+  if(degEmpFilter!=="all"){visD=visD.filter(d=>d.emp===degEmpFilter);visDForDash=visDForDash.filter(d=>d.emp===degEmpFilter);}
   if(degStatusFilter!=="all")visD=visD.filter(d=>d.pagamento===degStatusFilter);
 
   const summary=document.getElementById("degSummary");
@@ -3157,7 +3304,7 @@ function renderDesligamentos(){
     else badge.style.display="none";
   }
 
-  renderDegMiniDash(visD);
+  renderDegMiniDash(visDForDash);
 
   if(!visD.length){list.innerHTML='<div class="empty">Nenhum desligamento encontrado com esses filtros.</div>';return;}
 
@@ -3209,6 +3356,13 @@ function renderDegMiniDash(visD){
   ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:${typeof k.val==="string"&&k.val.length>6?"0.95rem":"1.7rem"}">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("");
 }
 
+function degFlagBtn(d,field,label,canEdit){
+  const on=!!d[field];
+  const style=`background:${on?"rgba(76,175,125,.16)":"var(--s3)"};color:${on?"#5fdb9c":"var(--text2)"};border:1px solid ${on?"rgba(76,175,125,.3)":"var(--border)"}`;
+  if(canEdit)return`<button class="tag deg-flag${on?" on":""}" data-flag="${field}" data-degid="${d.id}" style="cursor:pointer;${style}">${on?"✅":"⬜"} ${label}</button>`;
+  return`<span class="tag" style="${style}">${on?"✅":"⬜"} ${label}</span>`;
+}
+
 function buildDegCard(d){
   const canEdit=isAdmin||d.createdBy===user?.uid;
   const overdue=d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today();
@@ -3221,8 +3375,10 @@ function buildDegCard(d){
       <div class="t-meta">
         <span class="tag" style="background:${d.pagamento==="realizado"?"rgba(76,175,125,.16)":"rgba(224,92,92,.16)"};color:${d.pagamento==="realizado"?"#5fdb9c":"#ff8a8a"}">${d.pagamento==="realizado"?"✅ Realizado":"⏳ Pendente"}</span>
         ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
-        ${canEdit?`<button class="tag deg-flag${d.enviado?" on":""}" data-flag="enviado" data-degid="${d.id}" style="cursor:pointer;background:${d.enviado?"rgba(76,175,125,.16)":"var(--s3)"};color:${d.enviado?"#5fdb9c":"var(--text2)"};border:1px solid ${d.enviado?"rgba(76,175,125,.3)":"var(--border)"}">${d.enviado?"✅":"⬜"} Enviado</button>`:`<span class="tag" style="background:var(--s3);color:var(--text2)">${d.enviado?"✅":"⬜"} Enviado</span>`}
-        ${canEdit?`<button class="tag deg-flag${d.homologado?" on":""}" data-flag="homologado" data-degid="${d.id}" style="cursor:pointer;background:${d.homologado?"rgba(76,175,125,.16)":"var(--s3)"};color:${d.homologado?"#5fdb9c":"var(--text2)"};border:1px solid ${d.homologado?"rgba(76,175,125,.3)":"var(--border)"}">${d.homologado?"✅":"⬜"} Homologado</button>`:`<span class="tag" style="background:var(--s3);color:var(--text2)">${d.homologado?"✅":"⬜"} Homologado</span>`}
+        ${degFlagBtn(d,"feito","Feito",canEdit)}
+        ${degFlagBtn(d,"confLeo","Conferência Leo",canEdit)}
+        ${degFlagBtn(d,"enviado","Enviado",canEdit)}
+        ${degFlagBtn(d,"homologado","Homologado",canEdit)}
         ${d.inicio?`<span class="tag" style="background:var(--s3);color:var(--text2)">Início ${fmtD(d.inicio)}</span>`:""}
         <span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(d.termino)}</span>
         <span class="tag" style="background:var(--s3);color:var(--text2)">Vencimento ${fmtD(d.vencimento)}</span>
@@ -3232,8 +3388,12 @@ function buildDegCard(d){
     <div class="t-actions">
       ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
     </div>`;
-  div.querySelector(".bi.edit")?.addEventListener("click",()=>openDegModal(d.id));
-  div.querySelector(".bi.del")?.addEventListener("click",()=>deleteDeslig(d.id));
+  div.addEventListener("click",e=>{
+    if(e.target.closest("button,.deg-flag"))return;
+    openDegPreview(d.id);
+  });
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openDegModal(d.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deleteDeslig(d.id);});
   div.querySelectorAll(".deg-flag").forEach(btn=>{
     btn.addEventListener("click",()=>toggleDegFlag(btn.dataset.degid,btn.dataset.flag));
   });
@@ -3244,9 +3404,11 @@ async function toggleDegFlag(id,field){
   const d=desligamentos.find(x=>x.id===id);if(!d)return;
   const newVal=!d[field];
   const updates={[field]:newVal};
+  const feito=field==="feito"?newVal:!!d.feito;
+  const confLeo=field==="confLeo"?newVal:!!d.confLeo;
   const enviado=field==="enviado"?newVal:!!d.enviado;
   const homologado=field==="homologado"?newVal:!!d.homologado;
-  updates.pagamento=(enviado&&homologado)?"realizado":"pendente"; // sempre recalcula: só fica Realizado com os dois marcados
+  updates.pagamento=(feito&&confLeo&&enviado&&homologado)?"realizado":"pendente"; // sempre recalcula: só Realizado com os 4 marcados
   try{await updateDoc(doc(db,"desligamentos",id),updates);}catch(e){}
 }
 
@@ -3468,24 +3630,41 @@ document.getElementById("btnExportDeg")?.addEventListener("click",()=>{
 });
 
 document.getElementById("btnImportDegTrigger")?.addEventListener("click",()=>document.getElementById("importDegFile").click());
+function getRowField(row,...names){
+  const keys=Object.keys(row);
+  for(const name of names){
+    const found=keys.find(k=>k.trim().toLowerCase()===name.toLowerCase());
+    if(found!==undefined)return(row[found]??"").toString();
+  }
+  return"";
+}
+
+function findExistingDeslig(colaborador,empId,termino){
+  return desligamentos.find(d=>
+    d.colaborador.trim().toUpperCase()===colaborador.trim().toUpperCase()&&
+    d.emp===empId&&d.termino===termino
+  );
+}
+
 async function processDegImportRows(rowsBySheet){
   let novos=0,ignorados=0,semEmpresa=0;
   const empByLabel={};
   empresas.forEach(em=>{empByLabel[em.label.trim().toUpperCase()]=em.id;});
+  const parsedRows=[]; // {data, existing}
   for(const rows of rowsBySheet){
     for(const row of rows){
-      const instRaw=(row["Instituicao"]||row["Instituição"]||row["INSTITUIÇÃO"]||"").toString().trim();
-      const colaborador=(row["Colaborador"]||row["COLABORADOR"]||"").toString().trim();
+      const instRaw=getRowField(row,"Instituicao","Instituição").trim();
+      const colaborador=getRowField(row,"Colaborador").trim();
       if(!instRaw||!colaborador){ignorados++;continue;}
       const empId=empByLabel[instRaw.toUpperCase()];
       if(!empId){semEmpresa++;continue;}
-      const filialRaw=(row["Filial"]||"").toString().trim();
+      const filialRaw=getRowField(row,"Filial").trim();
       let filialId="";
       if(filialRaw){
         const filObj=filiais.find(f=>f.empId===empId&&f.label.trim().toUpperCase()===filialRaw.toUpperCase());
         filialId=filObj?filObj.id:"";
       }
-      const tipoRaw=(row["Tipo de Dispensa"]||row["TIPO DE DISPENSA"]||"").toString().trim().toUpperCase();
+      const tipoRaw=getRowField(row,"Tipo de Dispensa").trim().toUpperCase();
       let tipo="termino";
       if(tipoRaw.includes("DEMISS"))tipo="demissao";
       else if(tipoRaw.includes("QUEBRA"))tipo="quebra";
@@ -3500,28 +3679,60 @@ async function processDegImportRows(rowsBySheet){
         if(m)return`${m[3]}-${m[2]}-${m[1]}`;
         return"";
       };
-      const termino=parseDate(row["Termino"]||row["Término"]||row["TÉRMINO"]);
+      const termino=parseDate(getRowField(row,"Termino","Término"));
       if(!termino){ignorados++;continue;}
-      const inicio=parseDate(row["Inicio"]||row["Início"]||row["INICIO"]);
-      let vencimento=parseDate(row["Vencimento"]||row["VENCIMENTO"]);
+      const inicio=parseDate(getRowField(row,"Inicio","Início"));
+      let vencimento=parseDate(getRowField(row,"Vencimento"));
       if(!vencimento)vencimento=addDaysToDate(termino,10);
-      const pagRaw=(row["Pagamento"]||row["PAGAMENTO"]||"").toString().trim().toUpperCase();
+      const pagRaw=getRowField(row,"Pagamento").trim().toUpperCase();
       const pagamento=pagRaw.includes("REALIZ")?"realizado":"pendente";
-      const homologRaw=(row["Homologacao"]||row["Homologação"]||row["HOMOLOGAÇÃO"]||"").toString().trim();
+      const homologRaw=getRowField(row,"Homologacao","Homologação").trim();
       let homologData="",homologHora="";
       const hm=homologRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
       if(hm)homologData=`${hm[3]}-${hm[2]}-${hm[1]}`;
       const ht=homologRaw.match(/(\d{2}):(\d{2})/);
       if(ht)homologHora=`${ht[1]}:${ht[2]}`;
-      await addDoc(collection(db,"desligamentos"),{
+      const data={
         emp:empId,filial:filialId,colaborador,tipo,inicio,termino,vencimento,pagamento,
-        descontos:(row["Descontos"]||row["DESCONTOS"]||"").toString().trim(),
+        descontos:getRowField(row,"Descontos").trim(),
         homologData,homologHora,createdBy:user.uid,createdAt:serverTimestamp()
-      });
-      novos++;
+      };
+      const existing=findExistingDeslig(colaborador,empId,termino);
+      parsedRows.push({data,existing});
     }
   }
-  alert(`Importação concluída!\n\n✅ ${novos} lançamento(s) importado(s)\n${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de empresa não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem colaborador, empresa ou data de término preenchidos`:""}`);
+  const duplicates=parsedRows.filter(r=>r.existing);
+  const newOnes=parsedRows.filter(r=>!r.existing);
+
+  const finish=async(action)=>{ // action: "skip" ou "overwrite"
+    for(const r of newOnes){
+      try{await addDoc(collection(db,"desligamentos"),r.data);novos++;}catch(e){}
+    }
+    if(action==="overwrite"){
+      for(const r of duplicates){
+        try{const{createdAt,...rest}=r.data;await updateDoc(doc(db,"desligamentos",r.existing.id),rest);}catch(e){}
+      }
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} lançamento(s) novo(s) importado(s)\n${action==="overwrite"?`🔄 ${duplicates.length} lançamento(s) já existente(s) foram atualizados\n`:duplicates.length?`⏭️ ${duplicates.length} lançamento(s) já existente(s) foram ignorados (sem alteração)\n`:""}${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de empresa não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem colaborador, empresa ou data de término preenchidos`:""}`);
+  };
+
+  if(duplicates.length){
+    const ov=document.createElement("div");
+    ov.className="modal-ov open";
+    ov.innerHTML=`<div class="modal" style="max-width:420px">
+      <h2>⚠️ Lançamentos já existentes</h2>
+      <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">Encontramos <strong>${duplicates.length}</strong> linha${duplicates.length!==1?"s":""} desta planilha que já ${duplicates.length!==1?"existem":"existe"} no sistema (mesmo colaborador, empresa e data de término). ${newOnes.length} linha${newOnes.length!==1?"s são novas e serão":" é nova e será"} importada${newOnes.length!==1?"s":""} normalmente. O que fazer com ${duplicates.length!==1?"os duplicados":"o duplicado"}?</p>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnDegDupSkip">⏭️ Ignorar duplicados</button>
+        <button class="btn-save-m" id="btnDegDupOverwrite">🔄 Substituir dados</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("#btnDegDupSkip").addEventListener("click",async()=>{ov.remove();await finish("skip");});
+    ov.querySelector("#btnDegDupOverwrite").addEventListener("click",async()=>{ov.remove();await finish("overwrite");});
+  }else{
+    await finish("skip");
+  }
 }
 
 document.getElementById("importDegFile")?.addEventListener("change",async e=>{
