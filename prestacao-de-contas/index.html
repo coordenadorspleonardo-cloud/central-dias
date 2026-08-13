@@ -755,6 +755,7 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db = getFirestore(app);
 const gp = new GoogleAuthProvider();
+gp.setCustomParameters({prompt:"select_account"}); // sempre mostra a tela de escolha de conta, nunca reaproveita a última em silêncio
 
 const CLOUDINARY_CLOUD_NAME = "fqgrming";
 const CLOUDINARY_UPLOAD_PRESET = "dp_gestor_chat";
@@ -1245,10 +1246,15 @@ document.getElementById("focusDate").textContent=`${DAYS[nd.getDay()]}, ${nd.get
 
 onAuthStateChanged(auth, async u=>{
   if(u){
-    user=u; isAdmin=u.email===ADMIN_EMAIL||u.email===OVERSIGHT_EMAIL;
-    await ensureMember(u);
-    notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
-    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+    try{
+      user=u; isAdmin=u.email===ADMIN_EMAIL||u.email===OVERSIGHT_EMAIL;
+      await ensureMember(u);
+      notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
+      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+    }catch(e){
+      console.error("[Central Dias] Erro ao finalizar login:",e);
+      setErr("errLogin","Erro ao entrar: "+e.message);
+    }
   } else {
     stopPresence();
     stopNotificationListeners();
@@ -1311,7 +1317,10 @@ document.getElementById("btnGoogle").addEventListener("click", async()=>{
   try{ await signInWithRedirect(auth,gp); }
   catch(e){ setErr("errLogin","Erro Google: "+e.message); }
 });
-getRedirectResult(auth).catch(e=>{
+getRedirectResult(auth).then(result=>{
+  console.log("[Central Dias] getRedirectResult concluído. Usuário retornado:",result?result.user?.email:"(nenhum)");
+}).catch(e=>{
+  console.error("[Central Dias] Erro no getRedirectResult:",e);
   if(e&&e.code&&e.code!=="auth/no-current-user")setErr("errLogin","Erro Google: "+e.message);
 });
 
