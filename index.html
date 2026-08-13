@@ -16,7 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#080910;--s1:#0f1018;--s2:#141520;--s3:#1a1b2e;--border:#22243a;--border2:#2e3050;--text:#eeeef5;--text2:#8888aa;--text3:#44445a;--accent:#c8a96e;--accent2:#7c6fcd;--urg:#e05c5c;--imp:#e08c3a;--nor:#4caf7d;--low:#4a8fd4;--r:12px;--navy:#1a1f36;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -814,7 +814,7 @@ tr:hover td{background:var(--s3);}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
   updateProfile, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -840,6 +840,7 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db = getFirestore(app);
 const gp = new GoogleAuthProvider();
+gp.setCustomParameters({prompt:"select_account"}); // sempre mostra a tela de escolha de conta, nunca reaproveita a última em silêncio
 
 const CLOUDINARY_CLOUD_NAME = "fqgrming";
 const CLOUDINARY_UPLOAD_PRESET = "dp_gestor_chat";
@@ -1330,10 +1331,15 @@ document.getElementById("focusDate").textContent=`${DAYS[nd.getDay()]}, ${nd.get
 
 onAuthStateChanged(auth, async u=>{
   if(u){
-    user=u; isAdmin=u.email===ADMIN_EMAIL;
-    await ensureMember(u);
-    notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
-    loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+    try{
+      user=u; isAdmin=u.email===ADMIN_EMAIL;
+      await ensureMember(u);
+      notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
+      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+    }catch(e){
+      console.error("[Central Dias] Erro ao finalizar login:",e);
+      setErr("errLogin","Erro ao entrar: "+e.message);
+    }
   } else {
     stopPresence();
     stopNotificationListeners();
@@ -1393,8 +1399,14 @@ document.getElementById("btnEntrar").addEventListener("click", async()=>{
 });
 
 document.getElementById("btnGoogle").addEventListener("click", async()=>{
-  try{ await signInWithPopup(auth,gp); }
+  try{ await signInWithRedirect(auth,gp); }
   catch(e){ setErr("errLogin","Erro Google: "+e.message); }
+});
+getRedirectResult(auth).then(result=>{
+  console.log("[Central Dias] getRedirectResult concluído. Usuário retornado:",result?result.user?.email:"(nenhum)");
+}).catch(e=>{
+  console.error("[Central Dias] Erro no getRedirectResult:",e);
+  if(e&&e.code&&e.code!=="auth/no-current-user")setErr("errLogin","Erro Google: "+e.message);
 });
 
 document.getElementById("btnCriar").addEventListener("click", async()=>{
