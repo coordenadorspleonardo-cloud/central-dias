@@ -814,7 +814,7 @@ tr:hover td{background:var(--s3);}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+  GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   updateProfile, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -1398,15 +1398,21 @@ document.getElementById("btnEntrar").addEventListener("click", async()=>{
   catch(e){ setErr("errLogin",e.code==="auth/invalid-credential"?"E-mail ou senha incorretos.":e.message); }
 });
 
+let googleSignInEmProgresso=false;
 document.getElementById("btnGoogle").addEventListener("click", async()=>{
-  try{ await signInWithRedirect(auth,gp); }
-  catch(e){ setErr("errLogin","Erro Google: "+e.message); }
-});
-getRedirectResult(auth).then(result=>{
-  console.log("[Central Dias] getRedirectResult concluído. Usuário retornado:",result?result.user?.email:"(nenhum)");
-}).catch(e=>{
-  console.error("[Central Dias] Erro no getRedirectResult:",e);
-  if(e&&e.code&&e.code!=="auth/no-current-user")setErr("errLogin","Erro Google: "+e.message);
+  if(googleSignInEmProgresso)return; // trava contra cliques duplicados, que cancelavam a tentativa anterior
+  googleSignInEmProgresso=true;
+  const btn=document.getElementById("btnGoogle");
+  btn.disabled=true;btn.style.opacity=".6";
+  try{ await signInWithPopup(auth,gp); }
+  catch(e){
+    if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request"){
+      setErr("errLogin","Erro Google: "+e.message);
+    }
+  }finally{
+    googleSignInEmProgresso=false;
+    btn.disabled=false;btn.style.opacity="1";
+  }
 });
 
 document.getElementById("btnCriar").addEventListener("click", async()=>{
