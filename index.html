@@ -681,6 +681,7 @@ tr:hover td{background:var(--s3);}
             <div class="chat-hd-av" style="background:rgba(200,169,110,.15);color:var(--accent)">CD</div>
             <div style="flex:1"><div class="chat-hd-name">Geral — Equipe Dias</div><div class="chat-hd-sub">Mensagens em tempo real</div></div>
             <button id="btnDeleteGroup" style="display:none;background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.25);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.68rem;padding:5px 10px;flex-shrink:0;">🗑 Excluir grupo</button>
+            <button id="btnDeleteDM" style="display:none;background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.25);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.68rem;padding:5px 10px;flex-shrink:0;">🗑 Excluir conversa</button>
           </div>
           <div class="chat-msgs" id="chatMsgs"></div>
           <div class="chat-inp-area" style="position:relative">
@@ -735,6 +736,16 @@ tr:hover td{background:var(--s3);}
     </div>
     <div class="view" id="view-config">
       <div class="settings-grid">
+        <div class="sc admin-only-el" style="display:none">
+          <h3>🔑 Convites — Quem pode se cadastrar</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Só e-mails cadastrados aqui conseguem <strong>criar uma conta nova</strong> no Departamento Pessoal. Não afeta quem já tem conta.</p>
+          <div id="invitesConfig"></div>
+          <div style="display:flex;gap:7px;margin-top:10px;">
+            <input type="text" id="newInviteEmail" placeholder="email@exemplo.com" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
+            <button id="btnAddInvite" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋ Convidar</button>
+          </div>
+          <button id="btnSyncInvites" class="btn-cancel" style="width:100%;margin-top:8px;font-size:.7rem;">🔄 Adicionar todos os membros atuais à lista</button>
+        </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>🏢 Gerenciar Empresas</h3>
           <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Adicione, renomeie ou exclua empresas. Mudanças em tempo real.</p>
@@ -1384,9 +1395,14 @@ async function ensureMember(u){
   const snap=await getDoc(ref);
   if(!snap.exists()){
     const ini=(u.displayName||u.email).split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase()||"?";
-    await setDoc(ref,{uid:u.uid,name:u.displayName||u.email,email:u.email,
-      role:u.email===ADMIN_EMAIL?"Admin":"Colaborador",
-      color:AV_COLORS[Math.floor(Math.random()*AV_COLORS.length)],ini,createdAt:serverTimestamp()});
+    try{
+      await setDoc(ref,{uid:u.uid,name:u.displayName||u.email,email:u.email,
+        role:u.email===ADMIN_EMAIL?"Admin":"Colaborador",
+        color:AV_COLORS[Math.floor(Math.random()*AV_COLORS.length)],ini,createdAt:serverTimestamp()});
+    }catch(e){
+      await signOut(auth);
+      throw new Error("Acesso restrito — fale com o Admin do Departamento Pessoal pra receber um convite.");
+    }
   }
 }
 
@@ -1710,6 +1726,10 @@ function startListeners(){
     notes=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderNotes();
   });
+  unsubInvites=onSnapshot(collection(db,"invites_dp"),snap=>{
+    invitesDp=snap.docs.map(d=>d.id);
+    renderInvitesConfig();
+  });
   unsubFiliais=onSnapshot(collection(db,"filiais"),snap=>{
     filiais=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
     renderFilialEmpSel();
@@ -1723,7 +1743,7 @@ function startListeners(){
   });
   renderDegEmpFilters();
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes,unsubFiliais,unsubDesligamentos].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -2413,6 +2433,8 @@ function renderChat(){
   if(!hdAv||!hdName||!hdSub||!mc)return;
   const delGroupBtn=document.getElementById("btnDeleteGroup");
   if(delGroupBtn)delGroupBtn.style.display="none";
+  const delDMBtn=document.getElementById("btnDeleteDM");
+  if(delDMBtn)delDMBtn.style.display="none";
 
   if(unsubDM){unsubDM();unsubDM=null;}
 
@@ -2494,12 +2516,30 @@ function renderChat(){
   }
 
   const other=members.find(m=>m.id===activeChat);
-  if(!other)return;
-  hdAv.textContent=other.ini||"?";hdAv.style.background=other.color+"30";hdAv.style.color=other.color;
-  hdName.textContent=other.name;
-  const pres=presenceData[other.id];
-  hdSub.textContent=pres?.online?"● Online agora":pres?.lastSeen?"Visto por último "+timeAgo(pres.lastSeen):"Offline";
-  const cid=convId(user.uid,other.id);
+  if(!other){
+    hdAv.textContent="👤";hdAv.style.background="var(--s3)";hdAv.style.color="var(--text2)";
+    hdName.textContent="Usuário removido";
+    hdSub.textContent="Essa pessoa não faz mais parte da equipe";
+  }else{
+    hdAv.textContent=other.ini||"?";hdAv.style.background=other.color+"30";hdAv.style.color=other.color;
+    hdName.textContent=other.name;
+    const pres=presenceData[other.id];
+    hdSub.textContent=pres?.online?"● Online agora":pres?.lastSeen?"Visto por último "+timeAgo(pres.lastSeen):"Offline";
+  }
+  const cid=convId(user.uid,activeChat);
+  if(delDMBtn){
+    if(isAdmin){
+      delDMBtn.style.display="inline-block";
+      delDMBtn.onclick=async()=>{
+        if(!confirm("Excluir essa conversa inteira e todas as mensagens dela? Isso não pode ser desfeito."))return;
+        try{
+          const msnap=await getDocs(query(collection(db,"dm_messages"),where("convId","==",cid)));
+          for(const mdoc of msnap.docs)await deleteDoc(doc(db,"dm_messages",mdoc.id));
+          activeChat="group";renderMbrList();renderChat();
+        }catch(err){alert("Erro ao excluir conversa: "+err.message);}
+      };
+    }
+  }
   unsubDM=onSnapshot(query(collection(db,"dm_messages"),where("participants","array-contains",user.uid),where("convId","==",cid),orderBy("ts","asc")),snap=>{
     const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMsgList(mc,dmMsgs,false);
@@ -3080,6 +3120,41 @@ async function saveTask(){
 }
 
 // ── E-MAIL DE TAREFA CRIADA (via EmailJS, para os e-mails cadastrados pelo Admin) ──
+let invitesDp=[];
+let unsubInvites=null;
+
+function renderInvitesConfig(){
+  const c=document.getElementById("invitesConfig");if(!c||!isAdmin)return;
+  c.innerHTML=invitesDp.length?invitesDp.map(email=>`
+    <div class="sc-emp-item">
+      <span class="sc-emp-input">${esc(email)}</span>
+      <button data-delinvite="${esc(email)}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+    </div>`).join(""):'<p style="font-size:.7rem;color:var(--text3)">Nenhum convite cadastrado ainda.</p>';
+  c.querySelectorAll("[data-delinvite]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      try{await deleteDoc(doc(db,"invites_dp",btn.dataset.delinvite));}catch(e){alert("Erro: "+e.message);}
+    });
+  });
+}
+document.getElementById("btnAddInvite")?.addEventListener("click",async()=>{
+  const inp=document.getElementById("newInviteEmail");
+  const email=inp.value.trim().toLowerCase();
+  if(!email||!email.includes("@")){alert("Digite um e-mail válido.");return;}
+  try{
+    await setDoc(doc(db,"invites_dp",email),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
+    inp.value="";
+  }catch(e){alert("Erro: "+e.message);}
+});
+document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
+  if(!confirm("Adicionar todos os membros atuais à lista de convites?"))return;
+  try{
+    for(const m of members){
+      if(m.email)await setDoc(doc(db,"invites_dp",m.email.trim().toLowerCase()),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
+    }
+    alert("Feito! Todos os membros atuais foram adicionados.");
+  }catch(e){alert("Erro: "+e.message);}
+});
+
 let notes=[];
 let unsubNotes=null;
 let desligamentos=[];
