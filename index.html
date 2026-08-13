@@ -1165,7 +1165,7 @@ function startNotificationListeners(){
     msgs2.forEach(m=>{
       if(m.from===user.uid||(m.readBy||[]).includes(user.uid))return;
       const other=(m.participants||[]).find(p=>p!==user.uid);
-      if(other)byConv[other]=(byConv[other]||0)+1;
+      if(other&&members.find(mb=>mb.id===other))byConv[other]=(byConv[other]||0)+1; // ignora conversas com quem já não existe mais na equipe
     });
     unreadState.dms=byConv;
     recomputeUnreadBadge();
@@ -1672,8 +1672,6 @@ function startListeners(){
         if(ch.type==="added"){
           soundTaskCreated();
           scheduleTaskCreatedRepeats();
-          const nd2=ch.doc.data();
-          showBrowserNotification("📋 Nova tarefa: "+(nd2.tit||""),(taskEmps(nd2).map(id=>getEmp(id).label).join(", ")||"")+" · "+(PRIOS[nd2.prio]?.l||""));
         }else if(ch.type==="modified"){
           const d=ch.doc.data();
           if(d.done&&prevTasksDone[ch.doc.id]===false)soundTaskDone();
@@ -2399,8 +2397,12 @@ function renderDone(){
     const empLabels=taskEmps(t).map(id=>getEmp(id).label).join(", ")||"—";
     const rem=dleft(t.doneAt);
     const d=document.createElement("div");d.className="done-card";
-    d.innerHTML=`<div style="flex:1"><div class="dc-title">${esc(t.tit)}</div><div class="dc-meta">${esc(empLabels)} · ${PRIOS[t.prio]?.l} · ${fmtDT(t.doneAt)}</div><div class="dc-exp">⏳ Removida em ${rem} dia${rem!==1?"s":""}</div></div><button class="dc-restore">↩ Restaurar</button>`;
+    d.innerHTML=`<div style="flex:1"><div class="dc-title">${esc(t.tit)}</div><div class="dc-meta">${esc(empLabels)} · ${PRIOS[t.prio]?.l} · ${fmtDT(t.doneAt)}</div><div class="dc-exp">⏳ Removida em ${rem} dia${rem!==1?"s":""}</div></div><button class="dc-restore">↩ Restaurar</button>${isAdmin?`<button class="dc-del-now" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.25);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.72rem;padding:6px 10px;">🗑 Excluir agora</button>`:""}`;
     d.querySelector(".dc-restore").addEventListener("click",()=>restoreTask(t.id));
+    d.querySelector(".dc-del-now")?.addEventListener("click",async()=>{
+      if(!confirm(`Excluir "${t.tit}" definitivamente agora? Isso não pode ser desfeito.`))return;
+      try{await deleteDoc(doc(db,"tasks",t.id));}catch(e){alert("Erro: "+e.message);}
+    });
     dl.appendChild(d);
   });
 }
@@ -4123,13 +4125,16 @@ async function sendTaskEmailNotification(task){
   if(!["urg","imp"].includes(task.prio))return; // só envia para Urgente e Importante
   const empLabels=taskEmps(task).map(id=>getEmp(id).label).join(", ")||"—";
   const watcherNames=(task.watchers||[]).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", ");
+  const respNames=taskResps(task).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", ");
   const params={
     task_title:task.tit,
+    task_details:task.det||"Sem detalhes",
     task_company:empLabels,
     task_priority:PRIOS[task.prio]?.l||task.prio,
     task_deadline:task.date?fmtD(task.date):"Sem prazo",
     task_time:task.hora||"Sem horário",
     task_watchers:watcherNames||"Nenhum",
+    task_resp:respNames||"Sem responsável",
     created_by:user.displayName||user.email
   };
   for(const email of notifEmails){
