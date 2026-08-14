@@ -399,6 +399,12 @@ tr:hover td{background:var(--s3);}
 .m-av img,.resp-avatar img,.rr-av img,.user-av img,.chat-hd-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 .logo-icon img{width:100%;height:100%;object-fit:contain;border-radius:7px;}
 #bgImageLayer{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center;background-repeat:no-repeat;display:none;}
+#connBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:950;background:var(--urg);color:#fff;text-align:center;font-size:.74rem;padding:6px 10px;font-weight:600;}
+#toastStack{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:900;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+.toast{background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;font-size:.76rem;color:var(--text);box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:90vw;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.err{border-color:var(--urg);color:#ffb3b3;}
+.toast.ok{border-color:var(--nor);}
 body.has-bg-image{background:transparent;}
 body.has-bg-image header{background:color-mix(in srgb, var(--header-bg,var(--navy)) 78%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
 body.has-bg-image .filters{background:color-mix(in srgb, var(--filters-bg,var(--s1)) 74%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
@@ -414,6 +420,8 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
 </head>
 <body>
 <div id="bgImageLayer"></div>
+<div id="connBanner"></div>
+<div id="toastStack"></div>
 
 <div id="notifBanner"><span></span><button onclick="document.getElementById('notifBanner').style.display='none'">✕</button></div>
 
@@ -571,9 +579,12 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
           <select id="deg-tipo">
             <option value="termino">Término de Contrato</option>
             <option value="demissao">Pedido de Demissão</option>
-            <option value="quebra">Quebra de Contrato</option>
+            <option value="quebra">Quebra de Contrato (Empregador)</option>
+            <option value="quebra_empresa">Quebra de Contrato (Empresa)</option>
             <option value="indenizado">Aviso Indenizado</option>
             <option value="trabalhado">Aviso Trabalhado</option>
+            <option value="acordo_mutuo">Acordo Mútuo (Art. 484 CLT)</option>
+            <option value="justa_causa">Justa Causa</option>
           </select>
         </div>
         <div class="fg"><label>Início</label><input type="date" id="deg-inicio"></div>
@@ -739,6 +750,23 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         <input type="file" id="importDegFile" accept=".xlsx,.xls" style="display:none">
         <button id="btnNewDeslig" class="btn-save-m">＋ Novo Desligamento</button>
       </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Período (Vencimento)</span>
+        <select id="degPeriodoSel" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:6px 10px;">
+          <option value="all">Todo período</option>
+          <option value="atrasado">Vencidos</option>
+          <option value="0">Hoje</option>
+          <option value="3">Próximos 3 dias</option>
+          <option value="7">Próximos 7 dias</option>
+          <option value="30">Próximos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <div id="degPeriodoCustomWrap" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="degPeriodoDe" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+          <span style="color:var(--text2);font-size:.72rem">até</span>
+          <input type="date" id="degPeriodoAte" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+        </div>
+      </div>
       <div id="degSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
       <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
       <div id="degMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
@@ -871,7 +899,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc,
-  deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp
+  deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp,
+  increment, arrayUnion, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── CONFIG ──
@@ -925,6 +954,19 @@ const EMAILJS_PUBLIC_KEY = "EutZaNyEwJjJOn5iN";
 const EMAILJS_SERVICE_ID = "service_rdrtnw5";
 const EMAILJS_TEMPLATE_ID = "template_0c3r7zr";
 try{ if(window.emailjs && EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")===-1) window.emailjs.init({publicKey:EMAILJS_PUBLIC_KEY}); }catch(e){}
+const EMAILJS_MONTHLY_CAP = 200; // limite do plano gratuito do EmailJS
+let emailUsage = {month:"",count:0};
+// Conta quantos e-mails já foram enviados neste mês, pra avisar o Admin antes de bater no limite gratuito.
+async function trackEmailSend(n){
+  n=n||1;
+  const monthKey=new Date().toISOString().slice(0,7);
+  try{
+    const ref=doc(db,"config","email_usage");
+    const snap=await getDoc(ref);
+    if(!snap.exists()||snap.data().month!==monthKey){ await setDoc(ref,{month:monthKey,count:n}); }
+    else{ await updateDoc(ref,{count:increment(n)}); }
+  }catch(e){}
+}
 
 // ── NOTIFICAÇÕES SONORAS RECORRENTES ──
 const UNREAD_SOUND_INTERVAL_MS = 5*60*1000; // 5 minutos
@@ -980,7 +1022,95 @@ const THEMES = {
 };
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+
+// ── GRUPOS RECOLHÍVEIS (Tarefas/Desligamentos): estado salvo só neste navegador, por pessoa ──
+function getCollapsedSections(){
+  try{return new Set(JSON.parse(localStorage.getItem("cdCollapsedSections")||"[]"));}catch(e){return new Set();}
+}
+function isSectionCollapsed(key){return getCollapsedSections().has(key);}
+function toggleSectionCollapsed(key){
+  const s=getCollapsedSections();
+  if(s.has(key))s.delete(key);else s.add(key);
+  localStorage.setItem("cdCollapsedSections",JSON.stringify([...s]));
+}
+function collapseToggleBtnHtml(key){
+  const collapsed=isSectionCollapsed(key);
+  return`<button class="sec-collapse-btn" data-collapsekey="${esc(key)}" title="${collapsed?"Mostrar":"Ocultar"}" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:.8rem;padding:2px 6px;margin-left:auto;line-height:1">${collapsed?"▸":"▾"}</button>`;
+}
+function wireCollapseToggle(headerEl,bodyEl,onToggle){
+  const btn=headerEl.querySelector(".sec-collapse-btn");
+  if(!btn)return;
+  const key=btn.dataset.collapsekey;
+  if(isSectionCollapsed(key))bodyEl.style.display="none";
+  btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    toggleSectionCollapsed(key);
+    if(onToggle)onToggle();
+    else bodyEl.style.display=bodyEl.style.display==="none"?"":"none";
+    btn.textContent=isSectionCollapsed(key)?"▸":"▾";
+    btn.title=isSectionCollapsed(key)?"Mostrar":"Ocultar";
+  });
+}
+
+// ── AVISOS: toast, banner de conexão, tradução de erros técnicos ──
+function showToast(msg,type){
+  const stack=document.getElementById("toastStack");if(!stack)return;
+  const el=document.createElement("div");
+  el.className="toast"+(type?" "+type:"");
+  el.textContent=msg;
+  stack.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{el.classList.remove("show");setTimeout(()=>el.remove(),300);},type==="err"?5000:3000);
+}
+let connBannerOfflineActive=false;
+function showConnBanner(msg){
+  const b=document.getElementById("connBanner");if(!b)return;
+  b.textContent=msg; b.style.display="block";
+}
+function hideConnBanner(){
+  if(connBannerOfflineActive)return;
+  const b=document.getElementById("connBanner");if(b)b.style.display="none";
+}
+window.addEventListener("offline",()=>{connBannerOfflineActive=true;showConnBanner("📡 Sem conexão com a internet — o que você fizer agora pode não salvar até reconectar.");});
+window.addEventListener("online",()=>{connBannerOfflineActive=false;hideConnBanner();showToast("✅ Conexão restabelecida.","ok");});
+function listenerErrorHandler(label){
+  return err=>{
+    console.error("[Central Dias] erro no listener \""+label+"\":",err);
+    showConnBanner("⚠️ Perdemos a conexão em tempo real com o servidor. Recarregue a página pra continuar vendo tudo atualizado.");
+  };
+}
+const ERR_MESSAGES={
+  "permission-denied":"Você não tem permissão pra fazer isso.",
+  "unavailable":"Sem conexão com o servidor no momento. Tente de novo em instantes.",
+  "deadline-exceeded":"A operação demorou demais e foi cancelada. Tente de novo.",
+  "not-found":"Esse item não existe mais (pode já ter sido excluído).",
+  "already-exists":"Já existe um registro assim.",
+  "resource-exhausted":"O sistema atingiu um limite de uso hoje. Tente novamente mais tarde.",
+  "auth/network-request-failed":"Falha de rede — verifique sua internet e tente de novo.",
+  "auth/too-many-requests":"Muitas tentativas seguidas. Aguarde um pouco antes de tentar de novo.",
+  "auth/invalid-credential":"E-mail ou senha incorretos.",
+  "auth/email-already-in-use":"E-mail já cadastrado. Use \"Entrar\".",
+  "auth/user-not-found":"E-mail não encontrado.",
+  "auth/popup-closed-by-user":"Login cancelado.",
+};
+function translateErr(e){
+  const code=e?.code||"";
+  if(ERR_MESSAGES[code])return ERR_MESSAGES[code];
+  if(code.startsWith("auth/"))return"Não foi possível completar o login ("+code.replace("auth/","")+").";
+  return e?.message||"Algo deu errado.";
+}
+// Fecha o modal/janela aberta mais recente ao apertar Esc. Os modais fixos (tarefa, desligamento) usam
+// closeModal()/closeDegModal() (só escondem, nunca saem do DOM); os modais criados na hora são removidos direto.
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  const openModals=document.querySelectorAll(".modal-ov.open");
+  if(!openModals.length)return;
+  const top=openModals[openModals.length-1];
+  if(top.id==="modalOv")closeModal();
+  else if(top.id==="modalDegOv")closeDegModal();
+  else top.remove();
+});
 function fmtD(s){if(!s)return"";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;}
 function fmtDT(ts){
   if(!ts)return"";
@@ -1208,7 +1338,7 @@ function recomputeUnreadBadge(){
 function startNotificationListeners(){
   sessionStartMs=Date.now();
   let firstChat=true,firstDM=true,firstGroup=true;
-  unsubBgChat=onSnapshot(collection(db,"chat"),snap=>{
+  unsubBgChat=onSnapshot(query(collection(db,"chat"),orderBy("ts","desc"),limit(300)),snap=>{
     const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     unreadState.group=msgs2.filter(m=>m.uid!==user.uid&&!(m.readBy||[]).includes(user.uid)).length;
     recomputeUnreadBadge();
@@ -1221,7 +1351,7 @@ function startNotificationListeners(){
         }
       }
     });
-  });
+  },listenerErrorHandler("chat"));
   unsubBgDM=onSnapshot(query(collection(db,"dm_messages"),where("participants","array-contains",user.uid)),snap=>{
     const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     const byConv={};
@@ -1292,13 +1422,26 @@ function buildBaseMsgData(){
 }
 async function deleteMsg(coll,msgId){
   if(!confirm("Excluir esta mensagem? Ela sumirá do chat imediatamente."))return;
-  try{await deleteDoc(doc(db,coll,msgId));}catch(e){alert("Erro ao excluir: "+e.message);}
+  try{await deleteDoc(doc(db,coll,msgId));}catch(e){alert("Erro ao excluir: "+translateErr(e));}
+}
+// Lê a lista mais recente do servidor dentro de uma transação antes de gravar — evita que duas edições
+// simultâneas (ex: dois admins mexendo em Empresas ao mesmo tempo) façam uma apagar o que a outra acabou de salvar.
+async function mutateListDoc(collName,docId,mutateFn,errPrefix){
+  try{
+    await runTransaction(db, async tx=>{
+      const ref=doc(db,collName,docId);
+      const snap=await tx.get(ref);
+      const current=snap.exists()?(snap.data().list||[]):[];
+      tx.set(ref,{list:mutateFn([...current])});
+    });
+  }catch(e){alert((errPrefix||"Erro")+": "+translateErr(e));}
 }
 async function getStorageUsage(){
   try{const snap=await getDoc(doc(db,"config","storage_usage"));return snap.exists()?(snap.data().totalBytes||0):0;}catch(e){return 0;}
 }
 async function addStorageUsage(bytes){
-  try{const cur=await getStorageUsage();await setDoc(doc(db,"config","storage_usage"),{totalBytes:cur+bytes},{merge:true});}catch(e){}
+  // increment() é atômico no servidor — evita perder contagem quando dois uploads acontecem ao mesmo tempo.
+  try{await setDoc(doc(db,"config","storage_usage"),{totalBytes:increment(bytes)},{merge:true});}catch(e){}
 }
 async function uploadAndSend(file,kind){
   const coll=getTargetCollection();
@@ -1325,7 +1468,7 @@ async function uploadAndSend(file,kind){
     else{msgData.fileUrl=data.secure_url;msgData.fileName=file.name||"audio.webm";msgData.fileType=file.type;msgData.fileSize=file.size;}
     await addDoc(collection(db,coll),msgData);
     await addStorageUsage(file.size);
-  }catch(e){alert("Erro ao enviar arquivo: "+e.message);}
+  }catch(e){alert("Erro ao enviar arquivo: "+translateErr(e));}
   bar.style.display="none";
 }
 
@@ -1360,7 +1503,7 @@ document.getElementById("btnMic").addEventListener("click",async()=>{
       const m=Math.floor(recSeconds/60),s=recSeconds%60;
       document.getElementById("recTimer").textContent=`${m}:${s.toString().padStart(2,"0")}`;
     },1000);
-  }catch(e){alert("Não foi possível acessar o microfone: "+e.message);}
+  }catch(e){alert("Não foi possível acessar o microfone: "+translateErr(e));}
 });
 document.getElementById("btnStopRec").addEventListener("click",()=>{
   if(!mediaRecorder)return;
@@ -1412,7 +1555,7 @@ onAuthStateChanged(auth, async u=>{
       loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
     }catch(e){
       console.error("[Central Dias] Erro ao finalizar login:",e);
-      setErr("errLogin","Erro ao entrar: "+e.message);
+      setErr("errLogin","Erro ao entrar: "+translateErr(e));
     }
   } else {
     stopPresence();
@@ -1486,7 +1629,7 @@ document.getElementById("btnGoogle").addEventListener("click", async()=>{
   try{ await signInWithPopup(auth,gp); }
   catch(e){
     if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request"){
-      setErr("errLogin","Erro Google: "+e.message);
+      setErr("errLogin","Erro Google: "+translateErr(e));
     }
   }finally{
     googleSignInEmProgresso=false;
@@ -1574,7 +1717,7 @@ document.getElementById("btnUseTemplate").addEventListener("click",()=>{
     btn.addEventListener("click",async(e)=>{
       e.stopPropagation();
       if(!confirm("Excluir este modelo? Ele deixará de existir para todos os usuários."))return;
-      try{await deleteDoc(doc(db,"task_templates",btn.dataset.tpldel));}catch(err){alert("Erro ao excluir: "+err.message);}
+      try{await deleteDoc(doc(db,"task_templates",btn.dataset.tpldel));}catch(err){alert("Erro ao excluir: "+translateErr(err));}
     });
   });
   ov.querySelectorAll("[data-tid]").forEach(el=>{
@@ -1605,7 +1748,7 @@ document.getElementById("btnSaveTemplate").addEventListener("click",async()=>{
       createdBy:user.uid,createdAt:serverTimestamp()
     });
     alert("Modelo salvo com sucesso!");
-  }catch(e){alert("Erro ao salvar modelo: "+e.message);}
+  }catch(e){alert("Erro ao salvar modelo: "+translateErr(e));}
 });
 document.getElementById("btnSendMsg").addEventListener("click",sendMsg);
 document.getElementById("searchInp").addEventListener("input",e=>{searchQ=e.target.value.toLowerCase().trim();renderAll();});
@@ -1771,7 +1914,7 @@ document.getElementById("photoFileInp")?.addEventListener("change",async e=>{
     const url=await uploadToCloudinary(file);
     await updateDoc(doc(db,"members",user.uid),{photoURL:url});
     status.textContent="✅ Foto atualizada!";
-  }catch(err){status.textContent="Erro ao enviar: "+err.message;}
+  }catch(err){status.textContent="Erro ao enviar: "+translateErr(err);}
   e.target.value="";
 });
 document.getElementById("btnRemovePhoto")?.addEventListener("click",async()=>{
@@ -1787,7 +1930,7 @@ document.getElementById("bgFileInp")?.addEventListener("change",async e=>{
     const url=await uploadToCloudinary(file);
     await updateDoc(doc(db,"members",user.uid),{bgImage:url});
     status.textContent="✅ Fundo atualizado!";
-  }catch(err){status.textContent="Erro ao enviar: "+err.message;}
+  }catch(err){status.textContent="Erro ao enviar: "+translateErr(err);}
   e.target.value="";
 });
 document.getElementById("btnRemoveBg")?.addEventListener("click",async()=>{
@@ -1834,12 +1977,12 @@ function startListeners(){
     prevTasksCmtCount={};
     tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;prevTasksCmtCount[t.id]=(t.cmts||[]).length;});
     purgeDone(); renderAll(); checkNotif(); updateDeadlinePopup();
-  });
+  },listenerErrorHandler("tasks"));
   unsubMbr=onSnapshot(collection(db,"members"),snap=>{
     members=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
     renderMbrList(); renderMbrConfig(); renderRespMultiSelect(); renderEmpMultiSelect(); renderWatchMultiSelect(); renderRespFilters();
     renderAll(); renderDesligamentos(); syncSelfAppearance();
-  });
+  },listenerErrorHandler("members"));
   unsubPresence=onSnapshot(collection(db,"presence"),snap=>{
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
     renderMbrList();
@@ -1859,6 +2002,12 @@ function startListeners(){
   getDoc(notifRef).then(snap=>{ if(!snap.exists())setDoc(notifRef,{list:[]}); });
   unsubNotifEmails=onSnapshot(notifRef,snap=>{
     notifEmails=snap.exists()?(snap.data().list||[]):[];
+    renderNotifEmailsConfig();
+  });
+  unsubEmailUsage=onSnapshot(doc(db,"config","email_usage"),snap=>{
+    const monthKey=new Date().toISOString().slice(0,7);
+    const d=snap.exists()?snap.data():{month:"",count:0};
+    emailUsage=d.month===monthKey?d:{month:monthKey,count:0};
     renderNotifEmailsConfig();
   });
   unsubNotes=onSnapshot(query(collection(db,"notes"),where("ownerId","==",user.uid)),snap=>{
@@ -1882,7 +2031,7 @@ function startListeners(){
   });
   renderDegEmpFilters();
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -2099,15 +2248,15 @@ function renderEmpConfig(){
 }
 
 async function moveEmp(id,dir){
-  const list=[...empresas].sort((a,b)=>(a.order||0)-(b.order||0));
-  const idx=list.findIndex(e=>e.id===id);
-  const swapIdx=idx+dir;
-  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
-  const a=list[idx],b=list[swapIdx];
-  const tempOrder=a.order;
-  a.order=b.order;
-  b.order=tempOrder;
-  try{await setDoc(doc(db,"config","empresas"),{list:[...empresas]});}catch(e){alert("Erro ao reordenar: "+e.message);}
+  await mutateListDoc("config","empresas",list=>{
+    const sorted=list.sort((a,b)=>(a.order||0)-(b.order||0));
+    const idx=sorted.findIndex(e=>e.id===id);
+    const swapIdx=idx+dir;
+    if(idx<0||swapIdx<0||swapIdx>=sorted.length)return sorted;
+    const a=sorted[idx],b=sorted[swapIdx];
+    const tempOrder=a.order;a.order=b.order;b.order=tempOrder;
+    return sorted;
+  },"Erro ao reordenar");
 }
 
 async function addEmp(){
@@ -2116,22 +2265,25 @@ async function addEmp(){
   if(!name){alert("Informe o nome.");return;}
   const id=name.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
   if(empresas.find(e=>e.id===id)){alert("Já existe uma empresa com esse nome.");return;}
-  const novas=[...empresas,{id,label:name,color,order:empresas.length}];
-  try{await setDoc(doc(db,"config","empresas"),{list:novas});}catch(e){alert("Erro: "+e.message);}
+  await mutateListDoc("config","empresas",list=>{
+    if(list.find(e=>e.id===id))return list;
+    return [...list,{id,label:name,color,order:list.length}];
+  },"Erro");
 }
 async function updateEmp(id,field,val){
-  const novas=empresas.map(e=>e.id===id?{...e,[field]:val}:e);
-  try{await setDoc(doc(db,"config","empresas"),{list:novas});}catch(e){}
+  await mutateListDoc("config","empresas",list=>list.map(e=>e.id===id?{...e,[field]:val}:e));
 }
 async function deleteEmp(id){
   if(!confirm("Excluir empresa?"))return;
-  const novas=empresas.filter(e=>e.id!==id);
-  try{await setDoc(doc(db,"config","empresas"),{list:novas});}catch(e){}
+  await mutateListDoc("config","empresas",list=>list.filter(e=>e.id!==id));
 }
 
 function renderNotifEmailsConfig(){
   const c=document.getElementById("notifEmailsConfig");if(!c||!isAdmin)return;
-  c.innerHTML=notifEmails.map((email,i)=>`
+  const pct=emailUsage.count/EMAILJS_MONTHLY_CAP;
+  const usageColor=pct>=0.9?"var(--urg)":pct>=0.7?"var(--imp)":"var(--text2)";
+  const usageHtml=`<div style="font-size:.68rem;color:${usageColor};margin-bottom:9px;">📧 Envios este mês: <strong>${emailUsage.count}/${EMAILJS_MONTHLY_CAP}</strong>${pct>=0.7?" — perto do limite gratuito do EmailJS!":""}</div>`;
+  c.innerHTML=usageHtml+notifEmails.map((email,i)=>`
     <div class="sc-emp-item">
       <span class="sc-emp-input" style="padding:2px 0">${esc(email)}</span>
       <button data-delmail="${i}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
@@ -2141,9 +2293,9 @@ function renderNotifEmailsConfig(){
       <button id="btnAddNotifEmail" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
     </div>`;
   c.querySelectorAll("[data-delmail]").forEach(btn=>{
+    const email=notifEmails[+btn.dataset.delmail];
     btn.addEventListener("click",async()=>{
-      const novas=notifEmails.filter((_,idx)=>idx!==+btn.dataset.delmail);
-      try{await setDoc(doc(db,"config","notification_emails"),{list:novas});}catch(e){}
+      await mutateListDoc("config","notification_emails",list=>list.filter(e=>e!==email));
     });
   });
   document.getElementById("btnAddNotifEmail")?.addEventListener("click",async()=>{
@@ -2154,7 +2306,8 @@ function renderNotifEmailsConfig(){
     const emailRegex=/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
     if(!emailRegex.test(val)){alert("Informe um e-mail válido, sem nome junto — só o endereço (ex: nome@dominio.com).");return;}
     if(notifEmails.includes(val)){alert("Este e-mail já está na lista.");return;}
-    try{await setDoc(doc(db,"config","notification_emails"),{list:[...notifEmails,val]});inp.value="";}catch(e){}
+    await mutateListDoc("config","notification_emails",list=>list.includes(val)?list:[...list,val]);
+    inp.value="";
   });
 }
 
@@ -2262,14 +2415,20 @@ function renderLista(){
     const empTasks=visTasks.filter(t=>taskEmps(t).includes(emp.id));
     if(!empTasks.length)return;
     anyRendered=true;
+    const empKey="tarefas:emp:"+emp.id;
     const empSection=document.createElement("div");
     empSection.style.marginBottom="22px";
-    empSection.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44">
-      <div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
       <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
       <span class="sec-cnt">${empTasks.length}</span>
-    </div>`;
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
     c.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
     const buckets={};
     empTasks.forEach(t=>{
       const b=dateBucketInfo(t.date);
@@ -2277,10 +2436,13 @@ function renderLista(){
       buckets[b.key].tasks.push(t);
     });
     Object.values(buckets).sort((a,b)=>a.order-b.order).forEach(bucket=>{
+      const bucketKey="tarefas:bucket:"+emp.id+":"+bucket.label;
       const div=document.createElement("div");div.className="section";
-      div.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(bucket.label)}</span><span class="sec-cnt">${bucket.tasks.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
-      empSection.appendChild(div);
+      div.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(bucket.label)}</span><span class="sec-cnt">${bucket.tasks.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(bucketKey)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(div);
       const ct=div.querySelector(".tasks-list");
+      const hd=div.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
       bucket.tasks.sort((a,b)=>pPeso(a.prio)-pPeso(b.prio)).forEach(t=>ct.appendChild(buildCard(t)));
     });
   });
@@ -2288,9 +2450,11 @@ function renderLista(){
   if(noEmpTasks.length){
     anyRendered=true;
     const div=document.createElement("div");div.className="section";
-    div.innerHTML=`<div class="sec-hd"><span class="sec-label">Sem empresa</span><span class="sec-cnt">${noEmpTasks.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
+    div.innerHTML=`<div class="sec-hd"><span class="sec-label">Sem empresa</span><span class="sec-cnt">${noEmpTasks.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml("tarefas:noemp")}</div><div class="tasks-list"></div>`;
     c.appendChild(div);
     const ct=div.querySelector(".tasks-list");
+    const hd=div.querySelector(".sec-hd");
+    wireCollapseToggle(hd,ct);
     noEmpTasks.sort((a,b)=>pPeso(a.prio)-pPeso(b.prio)).forEach(t=>ct.appendChild(buildCard(t)));
   }
   if(!anyRendered)c.innerHTML='<div class="empty">Nenhuma tarefa. Clique em ＋ Nova Tarefa!</div>';
@@ -2542,7 +2706,7 @@ function renderDone(){
     d.querySelector(".dc-restore").addEventListener("click",()=>restoreTask(t.id));
     d.querySelector(".dc-del-now")?.addEventListener("click",async()=>{
       if(!confirm(`Excluir "${t.tit}" definitivamente agora? Isso não pode ser desfeito.`))return;
-      try{await deleteDoc(doc(db,"tasks",t.id));}catch(e){alert("Erro: "+e.message);}
+      try{await deleteDoc(doc(db,"tasks",t.id));}catch(e){alert("Erro: "+translateErr(e));}
     });
     dl.appendChild(d);
   });
@@ -2585,8 +2749,8 @@ function renderChat(){
     hdAv.textContent="CD";hdAv.style.background="rgba(200,169,110,.15)";hdAv.style.color="var(--accent)";
     hdName.textContent="Geral — Equipe Dias";
     hdSub.textContent="Mensagens em tempo real";
-    unsubDM=onSnapshot(query(collection(db,"chat"),orderBy("ts","asc")),snap=>{
-      msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    unsubDM=onSnapshot(query(collection(db,"chat"),orderBy("ts","desc"),limit(200)),snap=>{
+      msgs=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
       renderMsgList(mc,msgs,false);
       markAsRead(msgs,"chat");
     });
@@ -2638,7 +2802,7 @@ function renderChat(){
             for(const mdoc of msnap.docs)await deleteDoc(doc(db,"group_messages",mdoc.id));
             await deleteDoc(doc(db,"group_chats",gid));
             activeChat="group";renderMbrList();renderChat();
-          }catch(err){alert("Erro ao excluir grupo: "+err.message);}
+          }catch(err){alert("Erro ao excluir grupo: "+translateErr(err));}
         };
       }
     }else{
@@ -2681,7 +2845,7 @@ function renderChat(){
           const msnap=await getDocs(query(collection(db,"dm_messages"),where("convId","==",cid)));
           for(const mdoc of msnap.docs)await deleteDoc(doc(db,"dm_messages",mdoc.id));
           activeChat="group";renderMbrList();renderChat();
-        }catch(err){alert("Erro ao excluir conversa: "+err.message);}
+        }catch(err){alert("Erro ao excluir conversa: "+translateErr(err));}
       };
     }
   }
@@ -2741,7 +2905,7 @@ async function markAsRead(dmMsgs,coll){
   for(const m of dmMsgs){
     const senderId=m.uid||m.from;
     if(senderId!==user.uid&&!(m.readBy||[]).includes(user.uid)){
-      try{await updateDoc(doc(db,coll,m.id),{readBy:[...(m.readBy||[]),user.uid]});}catch(e){}
+      try{await updateDoc(doc(db,coll,m.id),{readBy:arrayUnion(user.uid)});}catch(e){}
     }
   }
 }
@@ -2845,7 +3009,7 @@ function openGroupModal(){
       ov.remove();
       activeChat="customgroup:"+docRef.id;
       renderMbrList();renderChat();
-    }catch(e){alert("Erro ao criar grupo: "+e.message);}
+    }catch(e){alert("Erro ao criar grupo: "+translateErr(e));}
   });
 }
 
@@ -2933,7 +3097,7 @@ async function moveMbr(id,dir){
   try{
     await updateDoc(doc(db,"members",a.id),{order:orderB});
     await updateDoc(doc(db,"members",b.id),{order:orderA});
-  }catch(e){alert("Erro ao reordenar: "+e.message);}
+  }catch(e){alert("Erro ao reordenar: "+translateErr(e));}
 }
 
 function renderRespMultiSelect(){
@@ -3041,9 +3205,29 @@ async function toggleDone(id){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   const newDone=!t.done;
   try{
-    await updateDoc(doc(db,"tasks",id),{done:newDone,doneAt:newDone?serverTimestamp():null});
-    logActivity(newDone?"completed":"reopened",t);
-    if(newDone&&t.recurrence&&t.recurrence.type){
+    if(!newDone){
+      await updateDoc(doc(db,"tasks",id),{done:false,doneAt:null});
+      logActivity("reopened",t);
+      return;
+    }
+    // Transação: só cria a próxima ocorrência da recorrência se ninguém mais já concluiu essa tarefa
+    // (evita duplicar quando dois responsáveis clicam "concluir" quase ao mesmo tempo).
+    const ref=doc(db,"tasks",id);
+    let shouldSpawnNext=false;
+    await runTransaction(db, async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists())return;
+      const data=snap.data();
+      if(data.done)return;
+      const upd={done:true,doneAt:serverTimestamp()};
+      if(data.recurrence&&data.recurrence.type&&!data.recurrenceSpawned){
+        upd.recurrenceSpawned=true;
+        shouldSpawnNext=true;
+      }
+      tx.update(ref,upd);
+    });
+    logActivity("completed",t);
+    if(shouldSpawnNext){
       const nextDate=nextRecurrenceDate(t.date,t.recurrence.type);
       await addDoc(collection(db,"tasks"),{
         tit:t.tit,det:t.det||"",emp:taskEmps(t),prio:t.prio,date:nextDate,hora:t.hora||"",
@@ -3051,32 +3235,33 @@ async function toggleDone(id){
         done:false,doneAt:null,createdAt:serverTimestamp(),createdBy:t.createdBy||user.uid,cmts:[]
       });
     }
-  }catch(e){}
+  }catch(e){showToast("Não consegui salvar a conclusão da tarefa: "+translateErr(e),"err");}
 }
 
 async function saveInline(id,field,el){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   if(!isAdmin&&t.createdBy!==user?.uid)return;
   const val=el.value!==undefined?el.value:(el.textContent||"").trim();
-  try{await updateDoc(doc(db,"tasks",id),{[field]:val});}catch(e){}
+  try{await updateDoc(doc(db,"tasks",id),{[field]:val});}catch(e){showToast("Não consegui salvar essa alteração: "+translateErr(e),"err");}
 }
 
 async function delTask(id){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   if(!isAdmin&&t.createdBy!==user?.uid){alert("Você só pode excluir suas próprias tarefas.");return;}
   if(!confirm("Excluir permanentemente?"))return;
-  try{await deleteDoc(doc(db,"tasks",id));logActivity("deleted",t);}catch(e){}
+  try{await deleteDoc(doc(db,"tasks",id));logActivity("deleted",t);}catch(e){showToast("Não consegui excluir a tarefa: "+translateErr(e),"err");}
 }
 
 async function restoreTask(id){
-  try{await updateDoc(doc(db,"tasks",id),{done:false,doneAt:null});}catch(e){}
+  try{await updateDoc(doc(db,"tasks",id),{done:false,doneAt:null});}catch(e){showToast("Não consegui restaurar a tarefa: "+translateErr(e),"err");}
 }
 
 async function addCmt(id,inp){
   const text=(inp?.value||"").trim();if(!text)return;
   const t=tasks.find(t=>t.id===id);if(!t)return;
-  const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()}];
-  try{await updateDoc(doc(db,"tasks",id),{cmts});inp.value="";}catch(e){}
+  // arrayUnion() grava de forma atômica no servidor — dois comentários quase simultâneos não se sobrescrevem mais.
+  const novoCmt={who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()};
+  try{await updateDoc(doc(db,"tasks",id),{cmts:arrayUnion(novoCmt)});inp.value="";}catch(e){showToast("Não consegui salvar o comentário: "+translateErr(e),"err");}
 }
 
 function canDeleteComment(t,cc){
@@ -3115,7 +3300,7 @@ async function sendMsg(){
     }
     inp.value="";
     const dd=document.getElementById("mentionDropdown");if(dd)dd.style.display="none";
-  }catch(e){}
+  }catch(e){showToast("Não consegui enviar a mensagem: "+translateErr(e),"err");}
 }
 
 function openPostponeModal(taskId){
@@ -3142,10 +3327,10 @@ function openPostponeModal(taskId){
     const dataAntiga=t.date?fmtD(t.date):"sem data";
     try{
       await updateDoc(doc(db,"tasks",taskId),{date:novaData});
-      const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text:`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)}. Motivo: ${motivo}`,ts:Date.now()}];
-      await updateDoc(doc(db,"tasks",taskId),{cmts});
+      const novoCmt={who:user.displayName||user.email,uid:user.uid,text:`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)}. Motivo: ${motivo}`,ts:Date.now()};
+      await updateDoc(doc(db,"tasks",taskId),{cmts:arrayUnion(novoCmt)});
       ov.remove();
-    }catch(e){alert("Erro: "+e.message);}
+    }catch(e){alert("Erro: "+translateErr(e));}
   });
 }
 
@@ -3237,6 +3422,10 @@ async function saveTask(){
   const tit=document.getElementById("f-tit").value.trim();
   if(!tit){alert("Informe o título.");return;}
   if(!modalSelectedEmps.length){alert("Selecione ao menos uma empresa.");return;}
+  const dataEscolhida=document.getElementById("f-data").value;
+  if(dataEscolhida&&dataEscolhida<today()){
+    if(!confirm(`A data ${fmtD(dataEscolhida)} já passou — a tarefa vai nascer atrasada. Confirma mesmo assim?`))return;
+  }
   const recurVal=document.getElementById("f-recur").value;
   const precisaConferencia=document.getElementById("f-precisa-conf").checked;
   const data={tit,det:document.getElementById("f-det").value.trim(),
@@ -3261,7 +3450,7 @@ async function saveTask(){
       sendTaskEmailNotification(data);
     }
     closeModal();
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 }
 
 // ── E-MAIL DE TAREFA CRIADA (via EmailJS, para os e-mails cadastrados pelo Admin) ──
@@ -3277,7 +3466,7 @@ function renderInvitesConfig(){
     </div>`).join(""):'<p style="font-size:.7rem;color:var(--text3)">Nenhum convite cadastrado ainda.</p>';
   c.querySelectorAll("[data-delinvite]").forEach(btn=>{
     btn.addEventListener("click",async()=>{
-      try{await deleteDoc(doc(db,"invites_dp",btn.dataset.delinvite));}catch(e){alert("Erro: "+e.message);}
+      try{await deleteDoc(doc(db,"invites_dp",btn.dataset.delinvite));}catch(e){alert("Erro: "+translateErr(e));}
     });
   });
 }
@@ -3288,7 +3477,7 @@ document.getElementById("btnAddInvite")?.addEventListener("click",async()=>{
   try{
     await setDoc(doc(db,"invites_dp",email),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
     inp.value="";
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 });
 document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
   if(!confirm("Adicionar todos os membros atuais à lista de convites?"))return;
@@ -3297,7 +3486,7 @@ document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
       if(m.email)await setDoc(doc(db,"invites_dp",m.email.trim().toLowerCase()),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
     }
     alert("Feito! Todos os membros atuais foram adicionados.");
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 });
 
 let notes=[];
@@ -3309,8 +3498,10 @@ let unsubFiliais=null;
 let editDegId=null;
 let degStatusFilter="pendente";
 let degEmpFilter="all";
+let degPeriodFilter="all";
+let degMiniDashTipoExpanded=false;
 
-const TIPO_DISPENSA_LABELS={termino:"Término de Contrato",demissao:"Pedido de Demissão",quebra:"Quebra de Contrato",indenizado:"Aviso Indenizado",trabalhado:"Aviso Trabalhado"};
+const TIPO_DISPENSA_LABELS={termino:"Término de Contrato",demissao:"Pedido de Demissão",quebra:"Quebra de Contrato (Empregador)",quebra_empresa:"Quebra de Contrato (Empresa)",indenizado:"Aviso Indenizado",trabalhado:"Aviso Trabalhado",acordo_mutuo:"Acordo Mútuo (Art. 484 CLT)",justa_causa:"Justa Causa"};
 
 function addDaysToDate(dateStr,days){
   const[y,m,d]=dateStr.split("-").map(Number);
@@ -3365,7 +3556,7 @@ function renderFiliaisConfig(){
     try{
       await addDoc(collection(db,"filiais"),{empId,label:val,order:list.length,createdAt:serverTimestamp()});
       inp.value="";
-    }catch(e){alert("Erro: "+e.message);}
+    }catch(e){alert("Erro: "+translateErr(e));}
   });
 }
 document.getElementById("filialEmpSel")?.addEventListener("change",renderFiliaisConfig);
@@ -3379,7 +3570,7 @@ async function moveFilial(id,dir,list){
   try{
     await updateDoc(doc(db,"filiais",a.id),{order:orderB});
     await updateDoc(doc(db,"filiais",b.id),{order:orderA});
-  }catch(e){alert("Erro ao reordenar: "+e.message);}
+  }catch(e){alert("Erro ao reordenar: "+translateErr(e));}
 }
 
 function populateDegFilialSel(empId){
@@ -3484,7 +3675,7 @@ document.getElementById("btnSaveDeg")?.addEventListener("click",async()=>{
     if(editDegId){await updateDoc(doc(db,"desligamentos",editDegId),data);}
     else{data.createdAt=serverTimestamp();await addDoc(collection(db,"desligamentos"),data);}
     closeDegModal();
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 });
 
 async function deleteDeslig(id){
@@ -3509,6 +3700,32 @@ document.querySelectorAll("[data-degstatus]").forEach(btn=>{
     renderDesligamentos();
   });
 });
+document.getElementById("degPeriodoSel")?.addEventListener("change",function(){
+  degPeriodFilter=this.value;
+  const wrap=document.getElementById("degPeriodoCustomWrap");
+  if(wrap)wrap.style.display=this.value==="custom"?"flex":"none";
+  renderDesligamentos();
+});
+document.getElementById("degPeriodoDe")?.addEventListener("change",()=>renderDesligamentos());
+document.getElementById("degPeriodoAte")?.addEventListener("change",()=>renderDesligamentos());
+function filterDegByPeriodo(arr){
+  if(degPeriodFilter==="all")return arr;
+  const hoje=today();
+  if(degPeriodFilter==="atrasado")return arr.filter(d=>d.vencimento&&d.vencimento<hoje);
+  if(degPeriodFilter==="custom"){
+    const de=document.getElementById("degPeriodoDe")?.value||"";
+    const ate=document.getElementById("degPeriodoAte")?.value||"";
+    return arr.filter(d=>{
+      if(!d.vencimento)return false;
+      if(de&&d.vencimento<de)return false;
+      if(ate&&d.vencimento>ate)return false;
+      return true;
+    });
+  }
+  const dias=Number(degPeriodFilter);
+  const limite=addDaysToDate(hoje,dias);
+  return arr.filter(d=>d.vencimento&&d.vencimento>=hoje&&d.vencimento<=limite);
+}
 
 function mesLabel(dateStr){
   if(!dateStr)return"Sem data";
@@ -3520,8 +3737,9 @@ function mesLabel(dateStr){
 function renderDesligamentos(){
   const list=document.getElementById("degList");if(!list)return;
   let visD=desligamentos.filter(d=>isAdmin||!isTaskAdminOnly({emp:[d.emp]}));
-  let visDForDash=visD; // filtrado só por empresa, sem o filtro de status — usado no mini-dashboard
+  let visDForDash=visD; // filtrado só por empresa/período, sem o filtro de status — usado no mini-dashboard
   if(degEmpFilter!=="all"){visD=visD.filter(d=>d.emp===degEmpFilter);visDForDash=visDForDash.filter(d=>d.emp===degEmpFilter);}
+  visD=filterDegByPeriodo(visD);visDForDash=filterDegByPeriodo(visDForDash);
   if(degStatusFilter!=="all")visD=visD.filter(d=>d.pagamento===degStatusFilter);
 
   const summary=document.getElementById("degSummary");
@@ -3545,14 +3763,20 @@ function renderDesligamentos(){
   list.innerHTML="";
   Object.keys(byEmp).forEach(empId=>{
     const emp=getEmp(empId);
+    const empKey="deslig:emp:"+empId;
     const empSection=document.createElement("div");
     empSection.style.marginBottom="22px";
-    empSection.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44">
-      <div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
       <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
       <span class="sec-cnt">${byEmp[empId].length}</span>
-    </div>`;
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
     list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
 
     const byFilial={};
     byEmp[empId].forEach(d=>{
@@ -3563,10 +3787,13 @@ function renderDesligamentos(){
       byFilial[key].items.push(d);
     });
     Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="deslig:filial:"+empId+":"+filKey;
       const filDiv=document.createElement("div");filDiv.className="section";
-      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
-      empSection.appendChild(filDiv);
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
       const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
       byFilial[filKey].items.sort((a,b)=>(a.vencimento||"").localeCompare(b.vencimento||"")).forEach(d=>ct.appendChild(buildDegCard(d)));
     });
   });
@@ -3579,13 +3806,29 @@ function renderDegMiniDash(visD){
   const atrasados=visD.filter(d=>d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today()).length;
   const porTipo={};
   visD.forEach(d=>{const l=TIPO_DISPENSA_LABELS[d.tipo]||d.tipo;porTipo[l]=(porTipo[l]||0)+1;});
-  const tipoMaisComum=Object.entries(porTipo).sort((a,b)=>b[1]-a[1])[0];
+  const tiposOrdenados=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]);
+  const tipoMaisComum=tiposOrdenados[0];
+  const podeExpandir=tiposOrdenados.length>1;
   c.innerHTML=[
     {icon:"⏳",val:pendentes,lbl:"Pendentes"},
     {icon:"✅",val:realizados,lbl:"Realizados"},
     {icon:"⚠️",val:atrasados,lbl:"Atrasados"},
-    {icon:"📊",val:tipoMaisComum?tipoMaisComum[0]:"—",lbl:"Tipo mais comum"+(tipoMaisComum?` (${tipoMaisComum[1]})`:"")},
-  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:${typeof k.val==="string"&&k.val.length>6?"0.95rem":"1.7rem"}">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("");
+  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:1.7rem">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("")
+  +`<div class="kpi" id="degTipoKpi" style="${podeExpandir?"cursor:pointer":""}">
+      <div style="font-size:1rem;margin-bottom:5px">📊</div>
+      <div class="kpi-val" style="font-size:${tipoMaisComum&&tipoMaisComum[0].length>6?"0.95rem":"1.7rem"}">${esc(tipoMaisComum?tipoMaisComum[0]:"—")}</div>
+      <div class="kpi-lbl">${esc("Tipo mais comum"+(tipoMaisComum?` (${tipoMaisComum[1]})`:"")+(podeExpandir?(degMiniDashTipoExpanded?" · toque p/ ocultar":" · toque p/ ver todos"):""))}</div>
+    </div>`
+  +(degMiniDashTipoExpanded&&tiposOrdenados.length?`<div class="kpi" style="grid-column:1/-1;text-align:left;cursor:default">
+      <div style="font-size:.7rem;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📊 Todos os tipos de dispensa</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${tiposOrdenados.map(([label,count])=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text)"><span>${esc(label)}</span><span style="font-weight:700;color:var(--accent)">${count}</span></div>`).join("")}
+      </div>
+    </div>`:"");
+  if(podeExpandir)document.getElementById("degTipoKpi")?.addEventListener("click",()=>{
+    degMiniDashTipoExpanded=!degMiniDashTipoExpanded;
+    renderDegMiniDash(visD);
+  });
 }
 
 function degFlagBtn(d,field,label,canEdit){
@@ -3698,6 +3941,7 @@ async function sendWeeklyDigestEmailIfNeeded(dayKey){
           task_time:"—",task_watchers:"—",
           created_by:"Resumo automático"
         });
+        trackEmailSend();
       }catch(e){console.error("Erro ao enviar resumo para "+email,e);}
     }
   }catch(e){}
@@ -3899,8 +4143,11 @@ async function processDegImportRows(rowsBySheet){
       }
       const tipoRaw=getRowField(row,"Tipo de Dispensa").trim().toUpperCase();
       let tipo="termino";
-      if(tipoRaw.includes("DEMISS"))tipo="demissao";
+      if(tipoRaw.includes("QUEBRA")&&tipoRaw.includes("EMPRESA"))tipo="quebra_empresa";
       else if(tipoRaw.includes("QUEBRA"))tipo="quebra";
+      else if(tipoRaw.includes("MÚTUO")||tipoRaw.includes("MUTUO")||tipoRaw.includes("484"))tipo="acordo_mutuo";
+      else if(tipoRaw.includes("JUSTA"))tipo="justa_causa";
+      else if(tipoRaw.includes("DEMISS"))tipo="demissao";
       else if(tipoRaw.includes("INDENIZ"))tipo="indenizado";
       else if(tipoRaw.includes("TRABALH"))tipo="trabalhado";
       else if(tipoRaw.includes("TÉRMINO")||tipoRaw.includes("TERMINO"))tipo="termino";
@@ -3974,10 +4221,10 @@ document.getElementById("importDegFile")?.addEventListener("change",async e=>{
   if(!file)return;
   try{
     const buf=await file.arrayBuffer();
-    const wb=window.XLSX.read(buf,{type:"array"});
+    const wb=window.XLSX.read(buf,{type:"array",cellDates:true});
     const rowsBySheet=wb.SheetNames.map(sn=>window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""}));
     await processDegImportRows(rowsBySheet);
-  }catch(err){alert("Erro ao importar: "+err.message);}
+  }catch(err){alert("Erro ao importar: "+translateErr(err));}
 });
 
 // ── COLAR (Ctrl+V) DIRETO DO EXCEL NA ABA DESLIGAMENTOS ──
@@ -4005,7 +4252,7 @@ document.addEventListener("paste",async e=>{
   await processDegImportRows([rows]);
 });
 
-document.getElementById("btnBackupExcel")?.addEventListener("click",()=>{
+document.getElementById("btnBackupExcel")?.addEventListener("click",async()=>{
   if(!isAdmin){alert("Só o Admin pode gerar o backup completo.");return;}
   const wb=window.XLSX.utils.book_new();
 
@@ -4041,6 +4288,46 @@ document.getElementById("btnBackupExcel")?.addEventListener("click",()=>{
 
   const filiaisRows=filiais.map(f=>({Empresa:getEmp(f.empId).label,Filial:f.label,Ordem:f.order??""}));
   window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(filiaisRows.length?filiaisRows:[{Aviso:"Sem filiais"}]),"Filiais");
+
+  const nameOf=uid=>members.find(m=>m.id===uid)?.name||uid||"";
+  const addErrSheet=(sheetName,e)=>{
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet([{Erro:"Não foi possível carregar esses dados: "+translateErr(e)}]),sheetName);
+  };
+
+  try{
+    const chatSnap=await getDocs(collection(db,"chat"));
+    const chatRows=chatSnap.docs.map(d=>{const c=d.data();return{Autor:c.name||nameOf(c.uid),Mensagem:c.text||"",Data:fmtDT(c.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(chatRows.length?chatRows:[{Aviso:"Sem mensagens"}]),"Chat Geral");
+  }catch(e){addErrSheet("Chat Geral",e);}
+
+  try{
+    const dmSnap=await getDocs(collection(db,"dm_messages"));
+    const dmRows=dmSnap.docs.map(d=>{const m=d.data();return{Conversa:m.convId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(dmRows.length?dmRows:[{Aviso:"Sem mensagens diretas"}]),"DMs");
+  }catch(e){addErrSheet("DMs",e);}
+
+  try{
+    const gcSnap=await getDocs(collection(db,"group_chats"));
+    const groupNameById={};
+    const gcRows=gcSnap.docs.map(d=>{const g=d.data();groupNameById[d.id]=g.name||d.id;return{Nome:g.name||"",Membros:(g.members||[]).map(nameOf).join(", ")};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gcRows.length?gcRows:[{Aviso:"Sem grupos"}]),"Grupos");
+
+    const gmSnap=await getDocs(collection(db,"group_messages"));
+    const gmRows=gmSnap.docs.map(d=>{const m=d.data();return{Grupo:groupNameById[m.groupId]||m.groupId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gmRows.length?gmRows:[{Aviso:"Sem mensagens de grupo"}]),"Mensagens de Grupo");
+  }catch(e){addErrSheet("Grupos",e);}
+
+  try{
+    const ttSnap=await getDocs(collection(db,"task_templates"));
+    const ttRows=ttSnap.docs.map(d=>{const t=d.data();return{Nome:t.name||"",Titulo:t.tit||"",Detalhes:t.det||"",Empresas:(t.emp||[]).map(id=>getEmp(id).label).join(", "),Prioridade:PRIOS[t.prio]?.l||t.prio||"",CriadoPor:nameOf(t.createdBy)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(ttRows.length?ttRows:[{Aviso:"Sem modelos"}]),"Modelos de Tarefa");
+  }catch(e){addErrSheet("Modelos de Tarefa",e);}
+
+  try{
+    const invSnap=await getDocs(collection(db,"invites_dp"));
+    const invRows=invSnap.docs.map(d=>{const i=d.data();return{Email:d.id,Permitido:i.allowed?"SIM":"NÃO",AdicionadoPor:nameOf(i.addedBy),Data:fmtDT(i.addedAt)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(invRows.length?invRows:[{Aviso:"Sem convites"}]),"Convites");
+  }catch(e){addErrSheet("Convites",e);}
 
   window.XLSX.writeFile(wb,`backup_central_dias_${today()}.xlsx`);
 });
@@ -4257,11 +4544,12 @@ document.getElementById("btnNewNote")?.addEventListener("click",async()=>{
       title:"Nova anotação",titleColor:"#eeeef5",content:"",pinned:false,
       ownerId:user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
     });
-  }catch(e){alert("Erro ao criar anotação: "+e.message);}
+  }catch(e){alert("Erro ao criar anotação: "+translateErr(e));}
 });
 
 let notifEmails=[];
 let unsubNotifEmails=null;
+let unsubEmailUsage=null;
 async function sendTaskEmailNotification(task){
   if(!window.emailjs||EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")!==-1)return; // EmailJS ainda não configurado
   if(!notifEmails.length)return;
@@ -4283,6 +4571,7 @@ async function sendTaskEmailNotification(task){
   for(const email of notifEmails){
     try{
       await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{...params,to_email:email});
+      trackEmailSend();
     }catch(e){console.error("Erro ao enviar e-mail para "+email,e);}
   }
 }
