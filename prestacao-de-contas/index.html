@@ -2429,14 +2429,20 @@ function renderLista(){
     const empTasks=visTasks.filter(t=>taskEmps(t).includes(emp.id));
     if(!empTasks.length)return;
     anyRendered=true;
+    const empKey="tarefas:emp:"+emp.id;
     const empSection=document.createElement("div");
     empSection.style.marginBottom="22px";
-    empSection.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44">
-      <div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
       <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
       <span class="sec-cnt">${empTasks.length}</span>
-    </div>`;
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
     c.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
     const buckets={};
     empTasks.forEach(t=>{
       const b=dateBucketInfo(t.date);
@@ -2444,10 +2450,13 @@ function renderLista(){
       buckets[b.key].tasks.push(t);
     });
     Object.values(buckets).sort((a,b)=>a.order-b.order).forEach(bucket=>{
+      const bucketKey="tarefas:bucket:"+emp.id+":"+bucket.label;
       const div=document.createElement("div");div.className="section";
-      div.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(bucket.label)}</span><span class="sec-cnt">${bucket.tasks.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
-      empSection.appendChild(div);
+      div.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(bucket.label)}</span><span class="sec-cnt">${bucket.tasks.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(bucketKey)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(div);
       const ct=div.querySelector(".tasks-list");
+      const hd=div.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
       bucket.tasks.sort((a,b)=>pPeso(a.prio)-pPeso(b.prio)).forEach(t=>ct.appendChild(buildCard(t)));
     });
   });
@@ -2455,9 +2464,11 @@ function renderLista(){
   if(noEmpTasks.length){
     anyRendered=true;
     const div=document.createElement("div");div.className="section";
-    div.innerHTML=`<div class="sec-hd"><span class="sec-label">Sem empresa</span><span class="sec-cnt">${noEmpTasks.length}</span><div class="sec-line"></div></div><div class="tasks-list"></div>`;
+    div.innerHTML=`<div class="sec-hd"><span class="sec-label">Sem empresa</span><span class="sec-cnt">${noEmpTasks.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml("tarefas:noemp")}</div><div class="tasks-list"></div>`;
     c.appendChild(div);
     const ct=div.querySelector(".tasks-list");
+    const hd=div.querySelector(".sec-hd");
+    wireCollapseToggle(hd,ct);
     noEmpTasks.sort((a,b)=>pPeso(a.prio)-pPeso(b.prio)).forEach(t=>ct.appendChild(buildCard(t)));
   }
   if(!anyRendered)c.innerHTML='<div class="empty">Nenhuma tarefa. Clique em ＋ Nova Tarefa!</div>';
@@ -3924,6 +3935,10 @@ function renderFiliaisPcConfig(){
     `<div style="display:flex;gap:7px;margin-top:10px;">
       <input type="text" id="newFilialPcName" placeholder="Nome da filial/unidade" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
       <button id="btnAddFilialPc" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
+    </div>
+    <div style="margin-top:10px;">
+      <textarea id="filiaisPcBulk" rows="4" placeholder="Ou cole aqui várias filiais de uma vez (uma por linha, na ordem que devem aparecer) e clique em cadastrar lista" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:7px 10px;outline:none;resize:vertical;"></textarea>
+      <button id="btnBulkAddFilialPc" style="margin-top:6px;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text2);font-family:inherit;font-size:.74rem;padding:6px 12px;cursor:pointer;">📋 Cadastrar lista colada</button>
     </div>`;
   c.querySelectorAll("[data-delfilpc]").forEach(btn=>{
     btn.addEventListener("click",async()=>{
@@ -3945,6 +3960,29 @@ function renderFiliaisPcConfig(){
       await addDoc(collection(db,"filiais_pc"),{empId,label:val,order:list.length,createdAt:serverTimestamp()});
       inp.value="";
     }catch(e){alert("Erro: "+translateErr(e));}
+  });
+  document.getElementById("btnBulkAddFilialPc")?.addEventListener("click",async()=>{
+    const ta=document.getElementById("filiaisPcBulk");
+    const lines=(ta.value||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    if(!lines.length){alert("Cole ao menos um nome de filial, um por linha.");return;}
+    const existing=new Set(list.map(f=>(f.label||"").trim().toLowerCase()));
+    const toAdd=[];
+    lines.forEach(l=>{
+      const k=l.toLowerCase();
+      if(existing.has(k))return;
+      existing.add(k);
+      toAdd.push(l);
+    });
+    const dupCount=lines.length-toAdd.length;
+    if(!toAdd.length){alert("Todas essas filiais já estavam cadastradas.");return;}
+    let order=list.length;
+    try{
+      for(const label of toAdd){
+        await addDoc(collection(db,"filiais_pc"),{empId,label,order:order++,createdAt:serverTimestamp()});
+      }
+      ta.value="";
+      alert(`${toAdd.length} filial(is) cadastrada(s) com sucesso${dupCount?`. ${dupCount} já existia(m) e foi(ram) ignorada(s)`:""}.`);
+    }catch(e){alert("Erro ao cadastrar lista: "+translateErr(e));}
   });
 }
 document.getElementById("filialPcEmpSel")?.addEventListener("change",renderFiliaisPcConfig);
