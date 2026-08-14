@@ -399,6 +399,12 @@ tr:hover td{background:var(--s3);}
 .m-av img,.resp-avatar img,.rr-av img,.user-av img,.chat-hd-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;}
 .logo-icon img{width:100%;height:100%;object-fit:contain;border-radius:7px;}
 #bgImageLayer{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center;background-repeat:no-repeat;display:none;}
+#connBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:950;background:var(--urg);color:#fff;text-align:center;font-size:.74rem;padding:6px 10px;font-weight:600;}
+#toastStack{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:900;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+.toast{background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;font-size:.76rem;color:var(--text);box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:90vw;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.err{border-color:var(--urg);color:#ffb3b3;}
+.toast.ok{border-color:var(--nor);}
 body.has-bg-image{background:transparent;}
 body.has-bg-image header{background:color-mix(in srgb, var(--header-bg,var(--navy)) 78%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
 body.has-bg-image .filters{background:color-mix(in srgb, var(--filters-bg,var(--s1)) 74%, transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
@@ -414,6 +420,8 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
 </head>
 <body>
 <div id="bgImageLayer"></div>
+<div id="connBanner"></div>
+<div id="toastStack"></div>
 
 <div id="notifBanner"><span></span><button onclick="document.getElementById('notifBanner').style.display='none'">✕</button></div>
 
@@ -539,6 +547,54 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
+  <!-- MODAL PENDÊNCIA -->
+  <div class="modal-ov" id="modalPendOv">
+    <div class="modal">
+      <h2 id="modalPendTitle">Nova Pendência</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>DRE *</label>
+          <select id="pend-dre"></select>
+        </div>
+        <div class="fg"><label>Técnico Responsável</label>
+          <div style="display:flex;gap:6px">
+            <select id="pend-tecnico" style="flex:1"><option value="">— Em aberto —</option></select>
+          </div>
+          <input type="text" id="pend-tecnico-novo" placeholder="Ou digite um nome novo (fica salvo pra todo mundo)" style="margin-top:6px;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:6px 9px;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="fg"><label>Instituição *</label>
+          <select id="pend-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="pend-filial"><option value="">— Em aberto —</option></select>
+        </div>
+        <div class="fg"><label>Trimestre *</label>
+          <select id="pend-trimestre">
+            <option value="1">1° Trimestre</option>
+            <option value="2">2° Trimestre</option>
+            <option value="3">3° Trimestre</option>
+            <option value="4">4° Trimestre</option>
+          </select>
+        </div>
+        <div class="fg"><label>Ano *</label>
+          <select id="pend-ano"></select>
+        </div>
+        <div class="fg"><label>Recebimento</label><input type="date" id="pend-recebimento"></div>
+        <div class="fg"><label>Entrega</label><input type="date" id="pend-entrega"></div>
+        <div class="fg full"><label>Descrição da Pendência *</label>
+          <select id="pend-descricao"></select>
+          <input type="text" id="pend-descricao-outro" placeholder="Descreva a pendência" style="display:none;margin-top:6px;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:6px 9px;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="fg full"><label>Observação</label><input type="text" id="pend-observacao" placeholder="Opcional"></div>
+        <div class="fg"><label>Status</label>
+          <select id="pend-status"></select>
+        </div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelPendModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSavePend">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- FOCUS -->
   <div class="focus-overlay" id="focusOv">
@@ -599,6 +655,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="concluidas">✅ Concluídas</button>
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
+    <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
@@ -664,6 +721,46 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         </div>
       </div>
     </div>
+    <div class="view" id="view-pendencias">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="pendEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Status</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <button class="fp on" data-pendstatus="all">Todos</button>
+          <button class="fp" data-pendstatus="nao_iniciado">Não iniciado</button>
+          <button class="fp" data-pendstatus="em_processo">Em processo</button>
+          <button class="fp" data-pendstatus="aguardando_cliente">Aguardando cliente</button>
+        </div>
+        <button id="btnExportPend" class="btn-cancel" style="margin-left:auto">📤 Exportar Excel</button>
+        <button id="btnImportPendTrigger" class="btn-cancel">📥 Importar Excel</button>
+        <input type="file" id="importPendFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnNewPend" class="btn-save-m">＋ Nova Pendência</button>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Período (Entrega)</span>
+        <select id="pendPeriodoSel" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:6px 10px;">
+          <option value="all">Todo período</option>
+          <option value="atrasado">Vencidos</option>
+          <option value="0">Hoje</option>
+          <option value="3">Próximos 3 dias</option>
+          <option value="7">Próximos 7 dias</option>
+          <option value="30">Próximos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <div id="pendPeriodoCustomWrap" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="pendPeriodoDe" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+          <span style="color:var(--text2);font-size:.72rem">até</span>
+          <input type="date" id="pendPeriodoAte" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+        </div>
+      </div>
+      <div id="pendSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
+      <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
+      <div id="pendMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
+      <div id="pendList"></div>
+    </div>
     <div class="view" id="view-notas">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <p style="font-size:.72rem;color:var(--text2)">📝 Suas anotações pessoais — só você vê e edita as suas.</p>
@@ -687,6 +784,17 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
           <h3>🏢 Gerenciar Empresas</h3>
           <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Adicione, renomeie ou exclua empresas. Mudanças em tempo real.</p>
           <div id="empresaConfig"></div>
+        </div>
+        <div class="sc admin-only-el" style="display:none">
+          <h3>🏬 Gerenciar Filiais/Unidades</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Cadastre as filiais de cada instituição (usadas nas Pendências).</p>
+          <select id="filialPcEmpSel" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;margin-bottom:10px;"></select>
+          <div id="filiaisPcConfig"></div>
+        </div>
+        <div class="sc admin-only-el" style="display:none">
+          <h3>🧑‍💼 Técnicos Responsáveis</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Lista usada nas Pendências. Qualquer colaborador pode adicionar um nome novo ao criar uma pendência — aqui o Admin pode remover.</p>
+          <div id="tecnicosPcConfig"></div>
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📧 E-mails de Notificação de Tarefas</h3>
@@ -725,6 +833,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
             <div class="color-row"><span class="cl">Fundo</span><input class="cinp" type="color" value="#080910" data-var="--bg"></div>
             <div class="color-row"><span class="cl">Balão "Lista"</span><input class="cinp" type="color" value="#c8a96e" data-var="--lista-badge-color"></div>
             <div class="color-row"><span class="cl">Balão "Desligamentos"</span><input class="cinp" type="color" value="#e05c5c" data-var="--deg-badge-color"></div>
+            <div class="color-row"><span class="cl">Balão "Pendências"</span><input class="cinp" type="color" value="#e05c5c" data-var="--pend-badge-color"></div>
             <div class="color-row"><span class="cl">Balão "Acompanhamento"</span><input class="cinp" type="color" value="#7c6fcd" data-var="--watch-badge-color"></div>
             <div class="color-row"><span class="cl">Fundo do cabeçalho</span><input class="cinp" type="color" value="#1a1f36" data-var="--header-bg"></div>
             <div class="color-row"><span class="cl">Fundo da barra de filtros</span><input class="cinp" type="color" value="#0f1018" data-var="--filters-bg"></div>
@@ -785,7 +894,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc,
-  deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp
+  deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp,
+  increment, arrayUnion, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── CONFIG ──
@@ -840,6 +950,19 @@ const EMAILJS_PUBLIC_KEY = "HxWLgdxCFuMqYkNpP";
 const EMAILJS_SERVICE_ID = "service_flirqq8";
 const EMAILJS_TEMPLATE_ID = "template_gjpol99";
 try{ if(window.emailjs && EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")===-1) window.emailjs.init({publicKey:EMAILJS_PUBLIC_KEY}); }catch(e){}
+const EMAILJS_MONTHLY_CAP = 200; // limite do plano gratuito do EmailJS
+let emailUsage = {month:"",count:0};
+// Conta quantos e-mails já foram enviados neste mês, pra avisar o Admin antes de bater no limite gratuito.
+async function trackEmailSend(n){
+  n=n||1;
+  const monthKey=new Date().toISOString().slice(0,7);
+  try{
+    const ref=doc(db,"config_pc","email_usage");
+    const snap=await getDoc(ref);
+    if(!snap.exists()||snap.data().month!==monthKey){ await setDoc(ref,{month:monthKey,count:n}); }
+    else{ await updateDoc(ref,{count:increment(n)}); }
+  }catch(e){}
+}
 
 // ── NOTIFICAÇÕES SONORAS RECORRENTES ──
 const UNREAD_SOUND_INTERVAL_MS = 5*60*1000; // 5 minutos
@@ -852,6 +975,26 @@ let empFilter="all", respFilter="all", searchQ="", editId=null;
 let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[];
 let unsubT=null, unsubM=null, unsubMbr=null, unsubEmp=null, unsubPresence=null;
 let presenceData={};
+
+// ── PENDÊNCIAS (aba nova, 14/08/2026) ──
+let filiaisPc=[], unsubFiliaisPc=null;
+let tecnicosPc=[], unsubTecnicosPc=null;
+let pendencias=[], unsubPendencias=null;
+let pendEmpFilter="all", pendStatusFilter="all", pendPeriodFilter="all", pendMiniDashExpanded=false, editPendId=null;
+const DRE_OPTIONS=["Butantã","Guaianases","Ipiranga","Itaquera","Pirituba"];
+const PEND_DESCRICAO_OPTIONS=[
+  "Bater saldo","Inserir extrato PP na aba rendimentos","Conciliar nota",
+  "Recolhimento não bate com a folha","Não identificado o pagamento da guia",
+  "Inserir 3 orçamentos","Anexar documento do VT","Colocar comprovante","Outro"
+];
+const PEND_STATUS_OPTIONS=[
+  {v:"nao_iniciado",l:"Não iniciado"},{v:"em_processo",l:"Em processo"},{v:"aguardando_cliente",l:"Aguardando o cliente"}
+];
+function pendAnosDisponiveis(){ // janela móvel: ano atual + 4 anos anteriores, mais recente primeiro
+  const anoAtual=new Date().getFullYear();
+  return[anoAtual,anoAtual-1,anoAtual-2,anoAtual-3,anoAtual-4];
+}
+function pendTrimestreLabel(tri){return tri?`${tri}° Tri`:"";}
 
 function isTaskAdminOnly(t){
   return taskEmps(t).some(id=>{const e=empresas.find(x=>x.id===id);return e&&e.adminOnly;});
@@ -895,7 +1038,94 @@ const THEMES = {
 };
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+
+// ── GRUPOS RECOLHÍVEIS (Pendências): estado salvo só neste navegador, por pessoa ──
+function getCollapsedSections(){
+  try{return new Set(JSON.parse(localStorage.getItem("cdCollapsedSections")||"[]"));}catch(e){return new Set();}
+}
+function isSectionCollapsed(key){return getCollapsedSections().has(key);}
+function toggleSectionCollapsed(key){
+  const s=getCollapsedSections();
+  if(s.has(key))s.delete(key);else s.add(key);
+  localStorage.setItem("cdCollapsedSections",JSON.stringify([...s]));
+}
+function collapseToggleBtnHtml(key){
+  const collapsed=isSectionCollapsed(key);
+  return`<button class="sec-collapse-btn" data-collapsekey="${esc(key)}" title="${collapsed?"Mostrar":"Ocultar"}" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:.8rem;padding:2px 6px;margin-left:auto;line-height:1">${collapsed?"▸":"▾"}</button>`;
+}
+function wireCollapseToggle(headerEl,bodyEl,onToggle){
+  const btn=headerEl.querySelector(".sec-collapse-btn");
+  if(!btn)return;
+  const key=btn.dataset.collapsekey;
+  if(isSectionCollapsed(key))bodyEl.style.display="none";
+  btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    toggleSectionCollapsed(key);
+    if(onToggle)onToggle();
+    else bodyEl.style.display=bodyEl.style.display==="none"?"":"none";
+    btn.textContent=isSectionCollapsed(key)?"▸":"▾";
+    btn.title=isSectionCollapsed(key)?"Mostrar":"Ocultar";
+  });
+}
+
+// ── AVISOS: toast, banner de conexão, tradução de erros técnicos ──
+function showToast(msg,type){
+  const stack=document.getElementById("toastStack");if(!stack)return;
+  const el=document.createElement("div");
+  el.className="toast"+(type?" "+type:"");
+  el.textContent=msg;
+  stack.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{el.classList.remove("show");setTimeout(()=>el.remove(),300);},type==="err"?5000:3000);
+}
+let connBannerOfflineActive=false;
+function showConnBanner(msg){
+  const b=document.getElementById("connBanner");if(!b)return;
+  b.textContent=msg; b.style.display="block";
+}
+function hideConnBanner(){
+  if(connBannerOfflineActive)return;
+  const b=document.getElementById("connBanner");if(b)b.style.display="none";
+}
+window.addEventListener("offline",()=>{connBannerOfflineActive=true;showConnBanner("📡 Sem conexão com a internet — o que você fizer agora pode não salvar até reconectar.");});
+window.addEventListener("online",()=>{connBannerOfflineActive=false;hideConnBanner();showToast("✅ Conexão restabelecida.","ok");});
+function listenerErrorHandler(label){
+  return err=>{
+    console.error("[Central Dias] erro no listener \""+label+"\":",err);
+    showConnBanner("⚠️ Perdemos a conexão em tempo real com o servidor. Recarregue a página pra continuar vendo tudo atualizado.");
+  };
+}
+const ERR_MESSAGES={
+  "permission-denied":"Você não tem permissão pra fazer isso.",
+  "unavailable":"Sem conexão com o servidor no momento. Tente de novo em instantes.",
+  "deadline-exceeded":"A operação demorou demais e foi cancelada. Tente de novo.",
+  "not-found":"Esse item não existe mais (pode já ter sido excluído).",
+  "already-exists":"Já existe um registro assim.",
+  "resource-exhausted":"O sistema atingiu um limite de uso hoje. Tente novamente mais tarde.",
+  "auth/network-request-failed":"Falha de rede — verifique sua internet e tente de novo.",
+  "auth/too-many-requests":"Muitas tentativas seguidas. Aguarde um pouco antes de tentar de novo.",
+  "auth/invalid-credential":"E-mail ou senha incorretos.",
+  "auth/email-already-in-use":"E-mail já cadastrado. Use \"Entrar\".",
+  "auth/user-not-found":"E-mail não encontrado.",
+  "auth/popup-closed-by-user":"Login cancelado.",
+};
+function translateErr(e){
+  const code=e?.code||"";
+  if(ERR_MESSAGES[code])return ERR_MESSAGES[code];
+  if(code.startsWith("auth/"))return"Não foi possível completar o login ("+code.replace("auth/","")+").";
+  return e?.message||"Algo deu errado.";
+}
+// Fecha o modal/janela aberta mais recente ao apertar Esc. O modal fixo (tarefa) usa closeModal() (só
+// esconde, nunca sai do DOM); os modais criados na hora são removidos direto.
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  const openModals=document.querySelectorAll(".modal-ov.open");
+  if(!openModals.length)return;
+  const top=openModals[openModals.length-1];
+  if(top.id==="modalOv")closeModal();
+  else top.remove();
+});
 function fmtD(s){if(!s)return"";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;}
 function fmtDT(ts){
   if(!ts)return"";
@@ -1123,7 +1353,7 @@ function recomputeUnreadBadge(){
 function startNotificationListeners(){
   sessionStartMs=Date.now();
   let firstChat=true,firstDM=true,firstGroup=true;
-  unsubBgChat=onSnapshot(collection(db,"chat_pc"),snap=>{
+  unsubBgChat=onSnapshot(query(collection(db,"chat_pc"),orderBy("ts","desc"),limit(300)),snap=>{
     const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     unreadState.group=msgs2.filter(m=>m.uid!==user.uid&&!(m.readBy||[]).includes(user.uid)).length;
     recomputeUnreadBadge();
@@ -1136,7 +1366,7 @@ function startNotificationListeners(){
         }
       }
     });
-  });
+  },listenerErrorHandler("chat"));
   unsubBgDM=onSnapshot(query(collection(db,"dm_messages_pc"),where("participants","array-contains",user.uid)),snap=>{
     const msgs2=snap.docs.map(d=>({id:d.id,...d.data()}));
     const byConv={};
@@ -1207,13 +1437,26 @@ function buildBaseMsgData(){
 }
 async function deleteMsg(coll,msgId){
   if(!confirm("Excluir esta mensagem? Ela sumirá do chat imediatamente."))return;
-  try{await deleteDoc(doc(db,coll,msgId));}catch(e){alert("Erro ao excluir: "+e.message);}
+  try{await deleteDoc(doc(db,coll,msgId));}catch(e){alert("Erro ao excluir: "+translateErr(e));}
+}
+// Lê a lista mais recente do servidor dentro de uma transação antes de gravar — evita que duas edições
+// simultâneas (ex: dois admins mexendo em Empresas ao mesmo tempo) façam uma apagar o que a outra acabou de salvar.
+async function mutateListDoc(collName,docId,mutateFn,errPrefix){
+  try{
+    await runTransaction(db, async tx=>{
+      const ref=doc(db,collName,docId);
+      const snap=await tx.get(ref);
+      const current=snap.exists()?(snap.data().list||[]):[];
+      tx.set(ref,{list:mutateFn([...current])});
+    });
+  }catch(e){alert((errPrefix||"Erro")+": "+translateErr(e));}
 }
 async function getStorageUsage(){
   try{const snap=await getDoc(doc(db,"config_pc","storage_usage"));return snap.exists()?(snap.data().totalBytes||0):0;}catch(e){return 0;}
 }
 async function addStorageUsage(bytes){
-  try{const cur=await getStorageUsage();await setDoc(doc(db,"config_pc","storage_usage"),{totalBytes:cur+bytes},{merge:true});}catch(e){}
+  // increment() é atômico no servidor — evita perder contagem quando dois uploads acontecem ao mesmo tempo.
+  try{await setDoc(doc(db,"config_pc","storage_usage"),{totalBytes:increment(bytes)},{merge:true});}catch(e){}
 }
 async function uploadAndSend(file,kind){
   const coll=getTargetCollection();
@@ -1240,7 +1483,7 @@ async function uploadAndSend(file,kind){
     else{msgData.fileUrl=data.secure_url;msgData.fileName=file.name||"audio.webm";msgData.fileType=file.type;msgData.fileSize=file.size;}
     await addDoc(collection(db,coll),msgData);
     await addStorageUsage(file.size);
-  }catch(e){alert("Erro ao enviar arquivo: "+e.message);}
+  }catch(e){alert("Erro ao enviar arquivo: "+translateErr(e));}
   bar.style.display="none";
 }
 
@@ -1275,7 +1518,7 @@ document.getElementById("btnMic").addEventListener("click",async()=>{
       const m=Math.floor(recSeconds/60),s=recSeconds%60;
       document.getElementById("recTimer").textContent=`${m}:${s.toString().padStart(2,"0")}`;
     },1000);
-  }catch(e){alert("Não foi possível acessar o microfone: "+e.message);}
+  }catch(e){alert("Não foi possível acessar o microfone: "+translateErr(e));}
 });
 document.getElementById("btnStopRec").addEventListener("click",()=>{
   if(!mediaRecorder)return;
@@ -1327,7 +1570,7 @@ onAuthStateChanged(auth, async u=>{
       loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
     }catch(e){
       console.error("[Central Dias] Erro ao finalizar login:",e);
-      setErr("errLogin","Erro ao entrar: "+e.message);
+      setErr("errLogin","Erro ao entrar: "+translateErr(e));
     }
   } else {
     stopPresence();
@@ -1401,7 +1644,7 @@ document.getElementById("btnGoogle").addEventListener("click", async()=>{
   try{ await signInWithPopup(auth,gp); }
   catch(e){
     if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request"){
-      setErr("errLogin","Erro Google: "+e.message);
+      setErr("errLogin","Erro Google: "+translateErr(e));
     }
   }finally{
     googleSignInEmProgresso=false;
@@ -1489,7 +1732,7 @@ document.getElementById("btnUseTemplate").addEventListener("click",()=>{
     btn.addEventListener("click",async(e)=>{
       e.stopPropagation();
       if(!confirm("Excluir este modelo? Ele deixará de existir para todos os usuários."))return;
-      try{await deleteDoc(doc(db,"task_templates_pc",btn.dataset.tpldel));}catch(err){alert("Erro ao excluir: "+err.message);}
+      try{await deleteDoc(doc(db,"task_templates_pc",btn.dataset.tpldel));}catch(err){alert("Erro ao excluir: "+translateErr(err));}
     });
   });
   ov.querySelectorAll("[data-tid]").forEach(el=>{
@@ -1520,7 +1763,7 @@ document.getElementById("btnSaveTemplate").addEventListener("click",async()=>{
       createdBy:user.uid,createdAt:serverTimestamp()
     });
     alert("Modelo salvo com sucesso!");
-  }catch(e){alert("Erro ao salvar modelo: "+e.message);}
+  }catch(e){alert("Erro ao salvar modelo: "+translateErr(e));}
 });
 document.getElementById("btnSendMsg").addEventListener("click",sendMsg);
 document.getElementById("searchInp").addEventListener("input",e=>{searchQ=e.target.value.toLowerCase().trim();renderAll();});
@@ -1687,7 +1930,7 @@ document.getElementById("photoFileInp")?.addEventListener("change",async e=>{
     const url=await uploadToCloudinary(file);
     await updateDoc(doc(db,"members_pc",user.uid),{photoURL:url});
     status.textContent="✅ Foto atualizada!";
-  }catch(err){status.textContent="Erro ao enviar: "+err.message;}
+  }catch(err){status.textContent="Erro ao enviar: "+translateErr(err);}
   e.target.value="";
 });
 document.getElementById("btnRemovePhoto")?.addEventListener("click",async()=>{
@@ -1703,7 +1946,7 @@ document.getElementById("bgFileInp")?.addEventListener("change",async e=>{
     const url=await uploadToCloudinary(file);
     await updateDoc(doc(db,"members_pc",user.uid),{bgImage:url});
     status.textContent="✅ Fundo atualizado!";
-  }catch(err){status.textContent="Erro ao enviar: "+err.message;}
+  }catch(err){status.textContent="Erro ao enviar: "+translateErr(err);}
   e.target.value="";
 });
 document.getElementById("btnRemoveBg")?.addEventListener("click",async()=>{
@@ -1712,7 +1955,7 @@ document.getElementById("btnRemoveBg")?.addEventListener("click",async()=>{
 
 function startListeners(){
   empresas=[...DEF_EMPS];
-  renderEmpFilters(); renderEmpConfig();
+  renderEmpFilters(); renderEmpConfig(); renderPendEmpFilters(); populatePendEmpSel();
   const empRef=doc(db,"config_pc","empresas");
   getDoc(empRef).then(snap=>{
     if(!snap.exists()) setDoc(empRef,{list:DEF_EMPS});
@@ -1721,6 +1964,7 @@ function startListeners(){
     if(snap.exists()&&snap.data().list?.length){
       empresas=[...snap.data().list].sort((a,b)=>(a.order||0)-(b.order||0));
       renderEmpFilters(); renderEmpConfig(); renderEmpMultiSelect(); renderEmpColorsPersonal(); renderAll();
+      renderPendEmpFilters(); populatePendEmpSel(); renderFiliaisPcEmpSel(); renderPendencias();
     }
   });
   unsubT=onSnapshot(query(collection(db,"tasks_pc"),orderBy("createdAt","desc")),snap=>{
@@ -1750,12 +1994,12 @@ function startListeners(){
     prevTasksCmtCount={};
     tasks.forEach(t=>{prevTasksDone[t.id]=!!t.done;prevTasksCmtCount[t.id]=(t.cmts||[]).length;});
     purgeDone(); renderAll(); checkNotif(); updateDeadlinePopup();
-  });
+  },listenerErrorHandler("tasks"));
   unsubMbr=onSnapshot(collection(db,"members_pc"),snap=>{
     members=snap.docs.map((d,i)=>({id:d.id,order:i,...d.data()}));
     renderMbrList(); renderMbrConfig(); renderRespMultiSelect(); renderEmpMultiSelect(); renderWatchMultiSelect(); renderRespFilters();
     renderAll(); syncSelfAppearance();
-  });
+  },listenerErrorHandler("members"));
   unsubPresence=onSnapshot(collection(db,"presence_pc"),snap=>{
     snap.docs.forEach(d=>{presenceData[d.id]=d.data();});
     renderMbrList();
@@ -1777,6 +2021,12 @@ function startListeners(){
     notifEmails=snap.exists()?(snap.data().list||[]):[];
     renderNotifEmailsConfig();
   });
+  unsubEmailUsage=onSnapshot(doc(db,"config_pc","email_usage"),snap=>{
+    const monthKey=new Date().toISOString().slice(0,7);
+    const d=snap.exists()?snap.data():{month:"",count:0};
+    emailUsage=d.month===monthKey?d:{month:monthKey,count:0};
+    renderNotifEmailsConfig();
+  });
   unsubNotes=onSnapshot(query(collection(db,"notes_pc"),where("ownerId","==",user.uid)),snap=>{
     notes=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderNotes();
@@ -1785,8 +2035,20 @@ function startListeners(){
     invitesPc=snap.docs.map(d=>d.id);
     renderInvitesConfig();
   });
+  unsubFiliaisPc=onSnapshot(collection(db,"filiais_pc"),snap=>{
+    filiaisPc=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderFiliaisPcEmpSel();
+  },listenerErrorHandler("filiais"));
+  unsubTecnicosPc=onSnapshot(collection(db,"tecnicos_pc"),snap=>{
+    tecnicosPc=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+    renderTecnicosPcConfig();
+  },listenerErrorHandler("tecnicos"));
+  unsubPendencias=onSnapshot(collection(db,"pendencias_pc"),snap=>{
+    pendencias=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderPendencias();
+  },listenerErrorHandler("pendencias"));
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubNotes,unsubInvites].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubInvites,unsubFiliaisPc,unsubTecnicosPc,unsubPendencias].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -2000,15 +2262,15 @@ function renderEmpConfig(){
 }
 
 async function moveEmp(id,dir){
-  const list=[...empresas].sort((a,b)=>(a.order||0)-(b.order||0));
-  const idx=list.findIndex(e=>e.id===id);
-  const swapIdx=idx+dir;
-  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
-  const a=list[idx],b=list[swapIdx];
-  const tempOrder=a.order;
-  a.order=b.order;
-  b.order=tempOrder;
-  try{await setDoc(doc(db,"config_pc","empresas"),{list:[...empresas]});}catch(e){alert("Erro ao reordenar: "+e.message);}
+  await mutateListDoc("config_pc","empresas",list=>{
+    const sorted=list.sort((a,b)=>(a.order||0)-(b.order||0));
+    const idx=sorted.findIndex(e=>e.id===id);
+    const swapIdx=idx+dir;
+    if(idx<0||swapIdx<0||swapIdx>=sorted.length)return sorted;
+    const a=sorted[idx],b=sorted[swapIdx];
+    const tempOrder=a.order;a.order=b.order;b.order=tempOrder;
+    return sorted;
+  },"Erro ao reordenar");
 }
 
 async function addEmp(){
@@ -2017,22 +2279,25 @@ async function addEmp(){
   if(!name){alert("Informe o nome.");return;}
   const id=name.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
   if(empresas.find(e=>e.id===id)){alert("Já existe uma empresa com esse nome.");return;}
-  const novas=[...empresas,{id,label:name,color,order:empresas.length}];
-  try{await setDoc(doc(db,"config_pc","empresas"),{list:novas});}catch(e){alert("Erro: "+e.message);}
+  await mutateListDoc("config_pc","empresas",list=>{
+    if(list.find(e=>e.id===id))return list;
+    return [...list,{id,label:name,color,order:list.length}];
+  },"Erro");
 }
 async function updateEmp(id,field,val){
-  const novas=empresas.map(e=>e.id===id?{...e,[field]:val}:e);
-  try{await setDoc(doc(db,"config_pc","empresas"),{list:novas});}catch(e){}
+  await mutateListDoc("config_pc","empresas",list=>list.map(e=>e.id===id?{...e,[field]:val}:e));
 }
 async function deleteEmp(id){
   if(!confirm("Excluir empresa?"))return;
-  const novas=empresas.filter(e=>e.id!==id);
-  try{await setDoc(doc(db,"config_pc","empresas"),{list:novas});}catch(e){}
+  await mutateListDoc("config_pc","empresas",list=>list.filter(e=>e.id!==id));
 }
 
 function renderNotifEmailsConfig(){
   const c=document.getElementById("notifEmailsConfig");if(!c||!isAdmin)return;
-  c.innerHTML=notifEmails.map((email,i)=>`
+  const pct=emailUsage.count/EMAILJS_MONTHLY_CAP;
+  const usageColor=pct>=0.9?"var(--urg)":pct>=0.7?"var(--imp)":"var(--text2)";
+  const usageHtml=`<div style="font-size:.68rem;color:${usageColor};margin-bottom:9px;">📧 Envios este mês: <strong>${emailUsage.count}/${EMAILJS_MONTHLY_CAP}</strong>${pct>=0.7?" — perto do limite gratuito do EmailJS!":""}</div>`;
+  c.innerHTML=usageHtml+notifEmails.map((email,i)=>`
     <div class="sc-emp-item">
       <span class="sc-emp-input" style="padding:2px 0">${esc(email)}</span>
       <button data-delmail="${i}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
@@ -2042,9 +2307,9 @@ function renderNotifEmailsConfig(){
       <button id="btnAddNotifEmail" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
     </div>`;
   c.querySelectorAll("[data-delmail]").forEach(btn=>{
+    const email=notifEmails[+btn.dataset.delmail];
     btn.addEventListener("click",async()=>{
-      const novas=notifEmails.filter((_,idx)=>idx!==+btn.dataset.delmail);
-      try{await setDoc(doc(db,"config_pc","notification_emails"),{list:novas});}catch(e){}
+      await mutateListDoc("config_pc","notification_emails",list=>list.filter(e=>e!==email));
     });
   });
   document.getElementById("btnAddNotifEmail")?.addEventListener("click",async()=>{
@@ -2055,7 +2320,8 @@ function renderNotifEmailsConfig(){
     const emailRegex=/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
     if(!emailRegex.test(val)){alert("Informe um e-mail válido, sem nome junto — só o endereço (ex: nome@dominio.com).");return;}
     if(notifEmails.includes(val)){alert("Este e-mail já está na lista.");return;}
-    try{await setDoc(doc(db,"config_pc","notification_emails"),{list:[...notifEmails,val]});inp.value="";}catch(e){}
+    await mutateListDoc("config_pc","notification_emails",list=>list.includes(val)?list:[...list,val]);
+    inp.value="";
   });
 }
 
@@ -2444,7 +2710,7 @@ function renderDone(){
     d.querySelector(".dc-restore").addEventListener("click",()=>restoreTask(t.id));
     d.querySelector(".dc-del-now")?.addEventListener("click",async()=>{
       if(!confirm(`Excluir "${t.tit}" definitivamente agora? Isso não pode ser desfeito.`))return;
-      try{await deleteDoc(doc(db,"tasks_pc",t.id));}catch(e){alert("Erro: "+e.message);}
+      try{await deleteDoc(doc(db,"tasks_pc",t.id));}catch(e){alert("Erro: "+translateErr(e));}
     });
     dl.appendChild(d);
   });
@@ -2487,8 +2753,8 @@ function renderChat(){
     hdAv.textContent="CD";hdAv.style.background="rgba(200,169,110,.15)";hdAv.style.color="var(--accent)";
     hdName.textContent="Geral — Equipe Dias";
     hdSub.textContent="Mensagens em tempo real";
-    unsubDM=onSnapshot(query(collection(db,"chat_pc"),orderBy("ts","asc")),snap=>{
-      msgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    unsubDM=onSnapshot(query(collection(db,"chat_pc"),orderBy("ts","desc"),limit(200)),snap=>{
+      msgs=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
       renderMsgList(mc,msgs,false);
       markAsRead(msgs,"chat_pc");
     });
@@ -2540,7 +2806,7 @@ function renderChat(){
             for(const mdoc of msnap.docs)await deleteDoc(doc(db,"group_messages_pc",mdoc.id));
             await deleteDoc(doc(db,"group_chats_pc",gid));
             activeChat="group";renderMbrList();renderChat();
-          }catch(err){alert("Erro ao excluir grupo: "+err.message);}
+          }catch(err){alert("Erro ao excluir grupo: "+translateErr(err));}
         };
       }
     }else{
@@ -2582,7 +2848,7 @@ function renderChat(){
         const msnap=await getDocs(query(collection(db,"dm_messages_pc"),where("convId","==",cid)));
         for(const mdoc of msnap.docs)await deleteDoc(doc(db,"dm_messages_pc",mdoc.id));
         activeChat="group";renderMbrList();renderChat();
-      }catch(err){alert("Erro ao excluir conversa: "+err.message);}
+      }catch(err){alert("Erro ao excluir conversa: "+translateErr(err));}
     };
   }
   unsubDM=onSnapshot(query(collection(db,"dm_messages_pc"),where("participants","array-contains",user.uid),where("convId","==",cid),orderBy("ts","asc")),snap=>{
@@ -2641,7 +2907,7 @@ async function markAsRead(dmMsgs,coll){
   for(const m of dmMsgs){
     const senderId=m.uid||m.from;
     if(senderId!==user.uid&&!(m.readBy||[]).includes(user.uid)){
-      try{await updateDoc(doc(db,coll,m.id),{readBy:[...(m.readBy||[]),user.uid]});}catch(e){}
+      try{await updateDoc(doc(db,coll,m.id),{readBy:arrayUnion(user.uid)});}catch(e){}
     }
   }
 }
@@ -2745,7 +3011,7 @@ function openGroupModal(){
       ov.remove();
       activeChat="customgroup:"+docRef.id;
       renderMbrList();renderChat();
-    }catch(e){alert("Erro ao criar grupo: "+e.message);}
+    }catch(e){alert("Erro ao criar grupo: "+translateErr(e));}
   });
 }
 
@@ -2833,7 +3099,7 @@ async function moveMbr(id,dir){
   try{
     await updateDoc(doc(db,"members_pc",a.id),{order:orderB});
     await updateDoc(doc(db,"members_pc",b.id),{order:orderA});
-  }catch(e){alert("Erro ao reordenar: "+e.message);}
+  }catch(e){alert("Erro ao reordenar: "+translateErr(e));}
 }
 
 function renderRespMultiSelect(){
@@ -2941,9 +3207,29 @@ async function toggleDone(id){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   const newDone=!t.done;
   try{
-    await updateDoc(doc(db,"tasks_pc",id),{done:newDone,doneAt:newDone?serverTimestamp():null});
-    logActivity(newDone?"completed":"reopened",t);
-    if(newDone&&t.recurrence&&t.recurrence.type){
+    if(!newDone){
+      await updateDoc(doc(db,"tasks_pc",id),{done:false,doneAt:null});
+      logActivity("reopened",t);
+      return;
+    }
+    // Transação: só cria a próxima ocorrência da recorrência se ninguém mais já concluiu essa tarefa
+    // (evita duplicar quando dois responsáveis clicam "concluir" quase ao mesmo tempo).
+    const ref=doc(db,"tasks_pc",id);
+    let shouldSpawnNext=false;
+    await runTransaction(db, async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists())return;
+      const data=snap.data();
+      if(data.done)return;
+      const upd={done:true,doneAt:serverTimestamp()};
+      if(data.recurrence&&data.recurrence.type&&!data.recurrenceSpawned){
+        upd.recurrenceSpawned=true;
+        shouldSpawnNext=true;
+      }
+      tx.update(ref,upd);
+    });
+    logActivity("completed",t);
+    if(shouldSpawnNext){
       const nextDate=nextRecurrenceDate(t.date,t.recurrence.type);
       await addDoc(collection(db,"tasks_pc"),{
         tit:t.tit,det:t.det||"",emp:taskEmps(t),prio:t.prio,date:nextDate,hora:t.hora||"",
@@ -2951,32 +3237,32 @@ async function toggleDone(id){
         done:false,doneAt:null,createdAt:serverTimestamp(),createdBy:t.createdBy||user.uid,cmts:[]
       });
     }
-  }catch(e){}
+  }catch(e){showToast("Não consegui salvar a conclusão da tarefa: "+translateErr(e),"err");}
 }
 
 async function saveInline(id,field,el){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   if(!isAdmin&&t.createdBy!==user?.uid)return;
   const val=el.value!==undefined?el.value:(el.textContent||"").trim();
-  try{await updateDoc(doc(db,"tasks_pc",id),{[field]:val});}catch(e){}
+  try{await updateDoc(doc(db,"tasks_pc",id),{[field]:val});}catch(e){showToast("Não consegui salvar essa alteração: "+translateErr(e),"err");}
 }
 
 async function delTask(id){
   const t=tasks.find(t=>t.id===id);if(!t)return;
   if(!isAdmin&&t.createdBy!==user?.uid){alert("Você só pode excluir suas próprias tarefas.");return;}
   if(!confirm("Excluir permanentemente?"))return;
-  try{await deleteDoc(doc(db,"tasks_pc",id));logActivity("deleted",t);}catch(e){}
+  try{await deleteDoc(doc(db,"tasks_pc",id));logActivity("deleted",t);}catch(e){showToast("Não consegui excluir a tarefa: "+translateErr(e),"err");}
 }
 
 async function restoreTask(id){
-  try{await updateDoc(doc(db,"tasks_pc",id),{done:false,doneAt:null});}catch(e){}
+  try{await updateDoc(doc(db,"tasks_pc",id),{done:false,doneAt:null});}catch(e){showToast("Não consegui restaurar a tarefa: "+translateErr(e),"err");}
 }
 
 async function addCmt(id,inp){
   const text=(inp?.value||"").trim();if(!text)return;
   const t=tasks.find(t=>t.id===id);if(!t)return;
-  const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()}];
-  try{await updateDoc(doc(db,"tasks_pc",id),{cmts});inp.value="";}catch(e){}
+  const novoCmt={who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()};
+  try{await updateDoc(doc(db,"tasks_pc",id),{cmts:arrayUnion(novoCmt)});inp.value="";}catch(e){showToast("Não consegui salvar o comentário: "+translateErr(e),"err");}
 }
 
 function canDeleteComment(t,cc){
@@ -3015,7 +3301,7 @@ async function sendMsg(){
     }
     inp.value="";
     const dd=document.getElementById("mentionDropdown");if(dd)dd.style.display="none";
-  }catch(e){}
+  }catch(e){showToast("Não consegui enviar a mensagem: "+translateErr(e),"err");}
 }
 
 function openPostponeModal(taskId){
@@ -3042,10 +3328,10 @@ function openPostponeModal(taskId){
     const dataAntiga=t.date?fmtD(t.date):"sem data";
     try{
       await updateDoc(doc(db,"tasks_pc",taskId),{date:novaData});
-      const cmts=[...(t.cmts||[]),{who:user.displayName||user.email,uid:user.uid,text:`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)}. Motivo: ${motivo}`,ts:Date.now()}];
-      await updateDoc(doc(db,"tasks_pc",taskId),{cmts});
+      const novoCmt={who:user.displayName||user.email,uid:user.uid,text:`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)}. Motivo: ${motivo}`,ts:Date.now()};
+      await updateDoc(doc(db,"tasks_pc",taskId),{cmts:arrayUnion(novoCmt)});
       ov.remove();
-    }catch(e){alert("Erro: "+e.message);}
+    }catch(e){alert("Erro: "+translateErr(e));}
   });
 }
 
@@ -3137,6 +3423,10 @@ async function saveTask(){
   const tit=document.getElementById("f-tit").value.trim();
   if(!tit){alert("Informe o título.");return;}
   if(!modalSelectedEmps.length){alert("Selecione ao menos uma empresa.");return;}
+  const dataEscolhida=document.getElementById("f-data").value;
+  if(dataEscolhida&&dataEscolhida<today()){
+    if(!confirm(`A data ${fmtD(dataEscolhida)} já passou — a tarefa vai nascer atrasada. Confirma mesmo assim?`))return;
+  }
   const recurVal=document.getElementById("f-recur").value;
   const precisaConferencia=document.getElementById("f-precisa-conf").checked;
   const data={tit,det:document.getElementById("f-det").value.trim(),
@@ -3161,7 +3451,7 @@ async function saveTask(){
       sendTaskEmailNotification(data);
     }
     closeModal();
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 }
 
 // ── E-MAIL DE TAREFA CRIADA (via EmailJS, para os e-mails cadastrados pelo Admin) ──
@@ -3177,7 +3467,7 @@ function renderInvitesConfig(){
     </div>`).join(""):'<p style="font-size:.7rem;color:var(--text3)">Nenhum convite cadastrado ainda.</p>';
   c.querySelectorAll("[data-delinvite]").forEach(btn=>{
     btn.addEventListener("click",async()=>{
-      try{await deleteDoc(doc(db,"invites_pc",btn.dataset.delinvite));}catch(e){alert("Erro: "+e.message);}
+      try{await deleteDoc(doc(db,"invites_pc",btn.dataset.delinvite));}catch(e){alert("Erro: "+translateErr(e));}
     });
   });
 }
@@ -3188,7 +3478,7 @@ document.getElementById("btnAddInvite")?.addEventListener("click",async()=>{
   try{
     await setDoc(doc(db,"invites_pc",email),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
     inp.value="";
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 });
 document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
   if(!confirm("Adicionar todos os membros atuais à lista de convites?"))return;
@@ -3197,12 +3487,12 @@ document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
       if(m.email)await setDoc(doc(db,"invites_pc",m.email.trim().toLowerCase()),{allowed:true,addedBy:user.uid,addedAt:serverTimestamp()});
     }
     alert("Feito! Todos os membros atuais foram adicionados.");
-  }catch(e){alert("Erro: "+e.message);}
+  }catch(e){alert("Erro: "+translateErr(e));}
 });
 
 let notes=[];
 let unsubNotes=null;
-document.getElementById("btnBackupExcel")?.addEventListener("click",()=>{
+document.getElementById("btnBackupExcel")?.addEventListener("click",async()=>{
   if(!isAdmin){alert("Só o Admin pode gerar o backup completo.");return;}
   const wb=window.XLSX.utils.book_new();
 
@@ -3225,6 +3515,46 @@ document.getElementById("btnBackupExcel")?.addEventListener("click",()=>{
 
   const empresasRows=empresas.map(e=>({Nome:e.label,Cor:e.color,AdminOnly:e.adminOnly?"SIM":"NÃO",Ordem:e.order??""}));
   window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(empresasRows.length?empresasRows:[{Aviso:"Sem empresas"}]),"Empresas");
+
+  const nameOf=uid=>members.find(m=>m.id===uid)?.name||uid||"";
+  const addErrSheet=(sheetName,e)=>{
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet([{Erro:"Não foi possível carregar esses dados: "+translateErr(e)}]),sheetName);
+  };
+
+  try{
+    const chatSnap=await getDocs(collection(db,"chat_pc"));
+    const chatRows=chatSnap.docs.map(d=>{const c=d.data();return{Autor:c.name||nameOf(c.uid),Mensagem:c.text||"",Data:fmtDT(c.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(chatRows.length?chatRows:[{Aviso:"Sem mensagens"}]),"Chat Geral");
+  }catch(e){addErrSheet("Chat Geral",e);}
+
+  try{
+    const dmSnap=await getDocs(collection(db,"dm_messages_pc"));
+    const dmRows=dmSnap.docs.map(d=>{const m=d.data();return{Conversa:m.convId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(dmRows.length?dmRows:[{Aviso:"Sem mensagens diretas"}]),"DMs");
+  }catch(e){addErrSheet("DMs",e);}
+
+  try{
+    const gcSnap=await getDocs(collection(db,"group_chats_pc"));
+    const groupNameById={};
+    const gcRows=gcSnap.docs.map(d=>{const g=d.data();groupNameById[d.id]=g.name||d.id;return{Nome:g.name||"",Membros:(g.members||[]).map(nameOf).join(", ")};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gcRows.length?gcRows:[{Aviso:"Sem grupos"}]),"Grupos");
+
+    const gmSnap=await getDocs(collection(db,"group_messages_pc"));
+    const gmRows=gmSnap.docs.map(d=>{const m=d.data();return{Grupo:groupNameById[m.groupId]||m.groupId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gmRows.length?gmRows:[{Aviso:"Sem mensagens de grupo"}]),"Mensagens de Grupo");
+  }catch(e){addErrSheet("Grupos",e);}
+
+  try{
+    const ttSnap=await getDocs(collection(db,"task_templates_pc"));
+    const ttRows=ttSnap.docs.map(d=>{const t=d.data();return{Nome:t.name||"",Titulo:t.tit||"",Detalhes:t.det||"",Empresas:(t.emp||[]).map(id=>getEmp(id).label).join(", "),Prioridade:PRIOS[t.prio]?.l||t.prio||"",CriadoPor:nameOf(t.createdBy)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(ttRows.length?ttRows:[{Aviso:"Sem modelos"}]),"Modelos de Tarefa");
+  }catch(e){addErrSheet("Modelos de Tarefa",e);}
+
+  try{
+    const invSnap=await getDocs(collection(db,"invites_pc"));
+    const invRows=invSnap.docs.map(d=>{const i=d.data();return{Email:d.id,Permitido:i.allowed?"SIM":"NÃO",AdicionadoPor:nameOf(i.addedBy),Data:fmtDT(i.addedAt)};});
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(invRows.length?invRows:[{Aviso:"Sem convites"}]),"Convites");
+  }catch(e){addErrSheet("Convites",e);}
 
   window.XLSX.writeFile(wb,`backup_central_dias_pc_${today()}.xlsx`);
 });
@@ -3336,11 +3666,12 @@ document.getElementById("btnNewNote")?.addEventListener("click",async()=>{
       title:"Nova anotação",titleColor:"#eeeef5",content:"",pinned:false,
       ownerId:user.uid,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
     });
-  }catch(e){alert("Erro ao criar anotação: "+e.message);}
+  }catch(e){alert("Erro ao criar anotação: "+translateErr(e));}
 });
 
 let notifEmails=[];
 let unsubNotifEmails=null;
+let unsubEmailUsage=null;
 async function sendTaskEmailNotification(task){
   if(!window.emailjs||EMAILJS_PUBLIC_KEY.indexOf("COLE_AQUI")!==-1)return; // EmailJS ainda não configurado
   if(!notifEmails.length)return;
@@ -3362,6 +3693,7 @@ async function sendTaskEmailNotification(task){
   for(const email of notifEmails){
     try{
       await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{...params,to_email:email});
+      trackEmailSend();
     }catch(e){console.error("Erro ao enviar e-mail para "+email,e);}
   }
 }
@@ -3563,6 +3895,580 @@ function openFocus(){  const tf=today();
   }
   document.getElementById("focusOv").classList.add("open");
 }
+
+// ══════════════ PENDÊNCIAS (aba nova, 14/08/2026) ══════════════
+
+// --- Filiais (gerenciado pelo Admin) ---
+function renderFiliaisPcEmpSel(){
+  const sel=document.getElementById("filialPcEmpSel");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}${e.adminOnly?" 🔒":""}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+  renderFiliaisPcConfig();
+}
+function renderFiliaisPcConfig(){
+  const c=document.getElementById("filiaisPcConfig");if(!c||!isAdmin)return;
+  const empId=document.getElementById("filialPcEmpSel")?.value;
+  if(!empId){c.innerHTML="";return;}
+  const list=filiaisPc.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  c.innerHTML=list.map((f,idx)=>`
+    <div class="sc-emp-item">
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        <button data-fppcup="${f.id}" ${idx===0?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===0?"var(--text3)":"var(--text2)"};cursor:${idx===0?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▲</button>
+        <button data-fppcdown="${f.id}" ${idx===list.length-1?"disabled":""} style="background:var(--s1);border:1px solid var(--border);border-radius:4px;color:${idx===list.length-1?"var(--text3)":"var(--text2)"};cursor:${idx===list.length-1?"default":"pointer"};font-size:.55rem;padding:1px 5px;line-height:1.3;">▼</button>
+      </div>
+      <span class="sc-emp-input">${esc(f.label)}</span>
+      <button data-delfilpc="${f.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+    </div>`).join("")+
+    `<div style="display:flex;gap:7px;margin-top:10px;">
+      <input type="text" id="newFilialPcName" placeholder="Nome da filial/unidade" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
+      <button id="btnAddFilialPc" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
+    </div>`;
+  c.querySelectorAll("[data-delfilpc]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!confirm("Excluir esta filial?"))return;
+      try{await deleteDoc(doc(db,"filiais_pc",btn.dataset.delfilpc));}catch(e){alert("Erro: "+translateErr(e));}
+    });
+  });
+  c.querySelectorAll("[data-fppcup]").forEach(btn=>{
+    btn.addEventListener("click",()=>moveFilialPc(btn.dataset.fppcup,-1,list));
+  });
+  c.querySelectorAll("[data-fppcdown]").forEach(btn=>{
+    btn.addEventListener("click",()=>moveFilialPc(btn.dataset.fppcdown,1,list));
+  });
+  document.getElementById("btnAddFilialPc")?.addEventListener("click",async()=>{
+    const inp=document.getElementById("newFilialPcName");
+    const val=inp.value.trim();
+    if(!val){alert("Informe o nome da filial.");return;}
+    try{
+      await addDoc(collection(db,"filiais_pc"),{empId,label:val,order:list.length,createdAt:serverTimestamp()});
+      inp.value="";
+    }catch(e){alert("Erro: "+translateErr(e));}
+  });
+}
+document.getElementById("filialPcEmpSel")?.addEventListener("change",renderFiliaisPcConfig);
+async function moveFilialPc(id,dir,list){
+  const idx=list.findIndex(f=>f.id===id);
+  const swapIdx=idx+dir;
+  if(idx<0||swapIdx<0||swapIdx>=list.length)return;
+  const a=list[idx],b=list[swapIdx];
+  const orderA=a.order??idx, orderB=b.order??swapIdx;
+  try{
+    await updateDoc(doc(db,"filiais_pc",a.id),{order:orderB});
+    await updateDoc(doc(db,"filiais_pc",b.id),{order:orderA});
+  }catch(e){alert("Erro ao reordenar: "+translateErr(e));}
+}
+
+// --- Técnicos (qualquer membro pode adicionar ao criar uma pendência; só o Admin remove) ---
+function renderTecnicosPcConfig(){
+  const c=document.getElementById("tecnicosPcConfig");if(!c||!isAdmin)return;
+  c.innerHTML=tecnicosPc.map(t=>`
+    <div class="sc-emp-item">
+      <span class="sc-emp-input">${esc(t.nome)}</span>
+      <button data-deltec="${t.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+    </div>`).join("")+
+    `<div style="display:flex;gap:7px;margin-top:10px;">
+      <input type="text" id="newTecnicoPcName" placeholder="Nome do técnico" style="flex:1;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;outline:none;">
+      <button id="btnAddTecnicoPc" style="background:var(--accent);border:none;border-radius:7px;color:#0f0f13;font-family:inherit;font-size:.76rem;font-weight:700;padding:7px 12px;cursor:pointer;">＋</button>
+    </div>`;
+  c.querySelectorAll("[data-deltec]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!confirm("Remover este técnico da lista?"))return;
+      try{await deleteDoc(doc(db,"tecnicos_pc",btn.dataset.deltec));}catch(e){alert("Erro: "+translateErr(e));}
+    });
+  });
+  document.getElementById("btnAddTecnicoPc")?.addEventListener("click",async()=>{
+    const inp=document.getElementById("newTecnicoPcName");
+    const val=inp.value.trim();
+    if(!val){alert("Informe o nome do técnico.");return;}
+    await addTecnicoPc(val);
+    inp.value="";
+  });
+}
+async function addTecnicoPc(nome){
+  const existing=tecnicosPc.find(t=>t.nome.trim().toUpperCase()===nome.trim().toUpperCase());
+  if(existing)return existing.nome;
+  try{
+    await addDoc(collection(db,"tecnicos_pc"),{nome:nome.trim(),addedBy:user.uid,addedAt:serverTimestamp()});
+  }catch(e){alert("Erro ao adicionar técnico: "+translateErr(e));}
+  return nome.trim();
+}
+
+// --- Selects do modal de Pendência ---
+function populatePendStaticSelects(){
+  const dreSel=document.getElementById("pend-dre");
+  if(dreSel&&!dreSel.dataset.filled){
+    dreSel.innerHTML=DRE_OPTIONS.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    dreSel.dataset.filled="1";
+  }
+  const descSel=document.getElementById("pend-descricao");
+  if(descSel&&!descSel.dataset.filled){
+    descSel.innerHTML=PEND_DESCRICAO_OPTIONS.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    descSel.dataset.filled="1";
+  }
+  const statusSel=document.getElementById("pend-status");
+  if(statusSel&&!statusSel.dataset.filled){
+    statusSel.innerHTML=PEND_STATUS_OPTIONS.map(s=>`<option value="${s.v}">${esc(s.l)}</option>`).join("");
+    statusSel.dataset.filled="1";
+  }
+  const anoSel=document.getElementById("pend-ano");
+  if(anoSel){
+    const cur=anoSel.value;
+    anoSel.innerHTML=pendAnosDisponiveis().map(a=>`<option value="${a}">${a}</option>`).join("");
+    if(cur&&[...anoSel.options].some(o=>o.value===cur))anoSel.value=cur;
+  }
+}
+function populatePendTecnicoSel(){
+  const sel=document.getElementById("pend-tecnico");if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Em aberto —</option>'+tecnicosPc.map(t=>`<option value="${esc(t.nome)}">${esc(t.nome)}</option>`).join("");
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function populatePendEmpSel(){
+  const sel=document.getElementById("pend-emp");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+}
+function populatePendFilialSel(empId){
+  const sel=document.getElementById("pend-filial");if(!sel)return;
+  const list=filiaisPc.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  sel.innerHTML='<option value="">— Em aberto —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+document.getElementById("pend-emp")?.addEventListener("change",function(){populatePendFilialSel(this.value);});
+document.getElementById("pend-descricao")?.addEventListener("change",function(){
+  document.getElementById("pend-descricao-outro").style.display=this.value==="Outro"?"block":"none";
+});
+
+// --- Modal: abrir / fechar / salvar / excluir ---
+function openPendModal(id){
+  editPendId=id||null;
+  const p=id?pendencias.find(x=>x.id===id):null;
+  document.getElementById("modalPendTitle").textContent=p?"Editar Pendência":"Nova Pendência";
+  populatePendStaticSelects();
+  populatePendTecnicoSel();
+  populatePendEmpSel();
+  document.getElementById("pend-dre").value=p?p.dre||DRE_OPTIONS[0]:DRE_OPTIONS[0];
+  document.getElementById("pend-tecnico").value=p?p.tecnico||"":"";
+  document.getElementById("pend-tecnico-novo").value="";
+  document.getElementById("pend-emp").value=p?p.emp:(document.getElementById("pend-emp").options[0]?.value||"");
+  populatePendFilialSel(document.getElementById("pend-emp").value);
+  document.getElementById("pend-filial").value=p?p.filial||"":"";
+  document.getElementById("pend-trimestre").value=p?p.trimestre||"1":"1";
+  document.getElementById("pend-ano").value=p?String(p.ano||new Date().getFullYear()):String(new Date().getFullYear());
+  document.getElementById("pend-recebimento").value=p?p.recebimento||"":"";
+  document.getElementById("pend-entrega").value=p?p.entrega||"":"";
+  const isOutro=!!(p&&p.descricao&&!PEND_DESCRICAO_OPTIONS.includes(p.descricao));
+  document.getElementById("pend-descricao").value=isOutro?"Outro":(p?p.descricao||PEND_DESCRICAO_OPTIONS[0]:PEND_DESCRICAO_OPTIONS[0]);
+  document.getElementById("pend-descricao-outro").style.display=isOutro?"block":"none";
+  document.getElementById("pend-descricao-outro").value=isOutro?p.descricao:"";
+  document.getElementById("pend-observacao").value=p?p.observacao||"":"";
+  document.getElementById("pend-status").value=p?p.status||"nao_iniciado":"nao_iniciado";
+  document.getElementById("modalPendOv").classList.add("open");
+}
+function closePendModal(){document.getElementById("modalPendOv").classList.remove("open");editPendId=null;}
+document.getElementById("btnNewPend")?.addEventListener("click",()=>openPendModal());
+document.getElementById("btnCancelPendModal")?.addEventListener("click",closePendModal);
+document.getElementById("modalPendOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closePendModal();});
+
+document.getElementById("btnSavePend")?.addEventListener("click",async()=>{
+  const emp=document.getElementById("pend-emp").value;
+  if(!emp){alert("Selecione a instituição.");return;}
+  let descricao=document.getElementById("pend-descricao").value;
+  if(descricao==="Outro"){
+    descricao=document.getElementById("pend-descricao-outro").value.trim();
+    if(!descricao){alert("Descreva a pendência.");return;}
+  }
+  let tecnico=document.getElementById("pend-tecnico-novo").value.trim();
+  if(tecnico){tecnico=await addTecnicoPc(tecnico);}
+  else tecnico=document.getElementById("pend-tecnico").value;
+  const data={
+    dre:document.getElementById("pend-dre").value,
+    tecnico,
+    emp,
+    filial:document.getElementById("pend-filial").value,
+    trimestre:document.getElementById("pend-trimestre").value,
+    ano:Number(document.getElementById("pend-ano").value),
+    recebimento:document.getElementById("pend-recebimento").value,
+    entrega:document.getElementById("pend-entrega").value,
+    descricao,
+    observacao:document.getElementById("pend-observacao").value.trim(),
+    status:document.getElementById("pend-status").value,
+    createdBy:user.uid
+  };
+  try{
+    if(editPendId){await updateDoc(doc(db,"pendencias_pc",editPendId),data);}
+    else{data.createdAt=serverTimestamp();await addDoc(collection(db,"pendencias_pc"),data);}
+    closePendModal();
+  }catch(e){alert("Erro: "+translateErr(e));}
+});
+
+async function deletePend(id){
+  if(!confirm("Excluir esta pendência?"))return;
+  try{await deleteDoc(doc(db,"pendencias_pc",id));}catch(e){alert("Erro: "+translateErr(e));}
+}
+
+// --- Filtros ---
+function renderPendEmpFilters(){
+  const c=document.getElementById("pendEmpFilters");if(!c)return;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  c.innerHTML=`<button class="fp${pendEmpFilter==="all"?" on":""}" data-pendemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${pendEmpFilter===e.id?" on":""}" data-pendemp="${e.id}" style="${pendEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll("[data-pendemp]").forEach(btn=>{
+    btn.addEventListener("click",()=>{pendEmpFilter=btn.dataset.pendemp;renderPendEmpFilters();renderPendencias();});
+  });
+}
+document.querySelectorAll("[data-pendstatus]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    pendStatusFilter=btn.dataset.pendstatus;
+    document.querySelectorAll("[data-pendstatus]").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    renderPendencias();
+  });
+});
+document.getElementById("pendPeriodoSel")?.addEventListener("change",function(){
+  pendPeriodFilter=this.value;
+  const wrap=document.getElementById("pendPeriodoCustomWrap");
+  if(wrap)wrap.style.display=this.value==="custom"?"flex":"none";
+  renderPendencias();
+});
+document.getElementById("pendPeriodoDe")?.addEventListener("change",()=>renderPendencias());
+document.getElementById("pendPeriodoAte")?.addEventListener("change",()=>renderPendencias());
+function filterPendByPeriodo(arr){
+  if(pendPeriodFilter==="all")return arr;
+  const hoje=today();
+  if(pendPeriodFilter==="atrasado")return arr.filter(p=>p.entrega&&p.entrega<hoje);
+  if(pendPeriodFilter==="custom"){
+    const de=document.getElementById("pendPeriodoDe")?.value||"";
+    const ate=document.getElementById("pendPeriodoAte")?.value||"";
+    return arr.filter(p=>{
+      if(!p.entrega)return false;
+      if(de&&p.entrega<de)return false;
+      if(ate&&p.entrega>ate)return false;
+      return true;
+    });
+  }
+  const limite=today(Number(pendPeriodFilter));
+  return arr.filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=limite);
+}
+
+// --- Listagem ---
+function renderPendencias(){
+  const list=document.getElementById("pendList");if(!list)return;
+  let visP=isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly);
+  let visPForDash=visP;
+  if(pendEmpFilter!=="all"){visP=visP.filter(p=>p.emp===pendEmpFilter);visPForDash=visPForDash.filter(p=>p.emp===pendEmpFilter);}
+  visP=filterPendByPeriodo(visP);visPForDash=filterPendByPeriodo(visPForDash);
+  if(pendStatusFilter!=="all")visP=visP.filter(p=>p.status===pendStatusFilter);
+
+  const summary=document.getElementById("pendSummary");
+  const totalPend=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).length;
+  const hoje=today();
+  const vencendoSemana=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=today(7)).length;
+  if(summary)summary.textContent=`🗂️ ${totalPend} pendência${totalPend!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
+
+  const badge=document.getElementById("pendTabBadge");
+  if(badge){
+    if(visP.length>0){badge.style.display="inline-flex";badge.textContent=visP.length;}
+    else badge.style.display="none";
+  }
+
+  renderPendMiniDash(visPForDash);
+
+  if(!visP.length){list.innerHTML='<div class="empty">Nenhuma pendência encontrada com esses filtros.</div>';return;}
+
+  const byEmp={};
+  visP.forEach(p=>{(byEmp[p.emp]||(byEmp[p.emp]=[])).push(p);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empKey="pend:emp:"+empId;
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
+    list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
+
+    const byFilial={};
+    byEmp[empId].forEach(p=>{
+      const filObj=filiaisPc.find(f=>f.id===p.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(p);
+    });
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="pend:filial:"+empId+":"+filKey;
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
+      byFilial[filKey].items.sort((a,b)=>(a.entrega||"").localeCompare(b.entrega||"")).forEach(p=>ct.appendChild(buildPendCard(p)));
+    });
+  });
+}
+
+function renderPendMiniDash(visP){
+  const c=document.getElementById("pendMiniDash");if(!c)return;
+  const naoIniciado=visP.filter(p=>p.status==="nao_iniciado").length;
+  const emProcesso=visP.filter(p=>p.status==="em_processo").length;
+  const aguardando=visP.filter(p=>p.status==="aguardando_cliente").length;
+  const porDescricao={};
+  visP.forEach(p=>{const l=p.descricao||"—";porDescricao[l]=(porDescricao[l]||0)+1;});
+  const descOrdenadas=Object.entries(porDescricao).sort((a,b)=>b[1]-a[1]);
+  const descMaisComum=descOrdenadas[0];
+  const podeExpandir=descOrdenadas.length>1;
+  c.innerHTML=[
+    {icon:"🆕",val:naoIniciado,lbl:"Não iniciado"},
+    {icon:"⚙️",val:emProcesso,lbl:"Em processo"},
+    {icon:"⏳",val:aguardando,lbl:"Aguardando cliente"},
+  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:1.7rem">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("")
+  +`<div class="kpi" id="pendDescKpi" style="${podeExpandir?"cursor:pointer":""}">
+      <div style="font-size:1rem;margin-bottom:5px">📊</div>
+      <div class="kpi-val" style="font-size:${descMaisComum&&descMaisComum[0].length>10?"0.85rem":"1.4rem"}">${esc(descMaisComum?descMaisComum[0]:"—")}</div>
+      <div class="kpi-lbl">${esc("Pendência mais comum"+(descMaisComum?` (${descMaisComum[1]})`:"")+(podeExpandir?(pendMiniDashExpanded?" · toque p/ ocultar":" · toque p/ ver todas"):""))}</div>
+    </div>`
+  +(pendMiniDashExpanded&&descOrdenadas.length?`<div class="kpi" style="grid-column:1/-1;text-align:left;cursor:default">
+      <div style="font-size:.7rem;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📊 Todos os tipos de pendência</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${descOrdenadas.map(([label,count])=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text)"><span>${esc(label)}</span><span style="font-weight:700;color:var(--accent)">${count}</span></div>`).join("")}
+      </div>
+    </div>`:"");
+  if(podeExpandir)document.getElementById("pendDescKpi")?.addEventListener("click",()=>{
+    pendMiniDashExpanded=!pendMiniDashExpanded;
+    renderPendMiniDash(visP);
+  });
+}
+
+function buildPendCard(p){
+  const canEdit=isAdmin||p.createdBy===user?.uid;
+  const overdue=!!(p.entrega&&p.entrega<today());
+  const statusInfo=PEND_STATUS_OPTIONS.find(s=>s.v===p.status)||PEND_STATUS_OPTIONS[0];
+  const statusColor=p.status==="aguardando_cliente"?"rgba(224,140,58,.16)":p.status==="em_processo"?"rgba(124,111,205,.16)":"rgba(224,92,92,.16)";
+  const statusTextColor=p.status==="aguardando_cliente"?"var(--imp)":p.status==="em_processo"?"var(--accent2)":"#ff8a8a";
+  const div=document.createElement("div");
+  div.className=`task${overdue?" overdue":""}`;
+  div.innerHTML=`
+    <div class="t-body">
+      <div class="t-title">${esc(p.descricao||"")}</div>
+      <div class="t-detail">${p.dre?esc(p.dre)+" · ":""}Técnico: ${p.tecnico?esc(p.tecnico):"em aberto"} · ${esc(pendTrimestreLabel(p.trimestre))} ${esc(String(p.ano||""))}${p.observacao?" · "+esc(p.observacao):""}</div>
+      <div class="t-meta">
+        <span class="tag" style="background:${statusColor};color:${statusTextColor}">${esc(statusInfo.l)}</span>
+        ${overdue?`<span class="tag overdue-badge">⚠️ Vencida</span>`:""}
+        ${p.recebimento?`<span class="tag" style="background:var(--s3);color:var(--text2)">Recebimento ${fmtD(p.recebimento)}</span>`:""}
+        ${p.entrega?`<span class="tag" style="background:var(--s3);color:var(--text2)">Entrega ${fmtD(p.entrega)}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  if(canEdit){
+    div.addEventListener("click",e=>{
+      if(e.target.closest("button"))return;
+      openPendModal(p.id);
+    });
+  }
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openPendModal(p.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deletePend(p.id);});
+  return div;
+}
+
+// --- Import/Export Excel + colar (Ctrl+V) ---
+function parseTSVToRows(text){
+  const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.length);
+  if(lines.length<2)return[];
+  const headers=lines[0].split("\t").map(h=>h.trim());
+  return lines.slice(1).map(line=>{
+    const cells=line.split("\t");
+    const obj={};
+    headers.forEach((h,i)=>{obj[h]=cells[i]!==undefined?cells[i]:"";});
+    return obj;
+  });
+}
+
+function getRowField(row,...names){
+  const keys=Object.keys(row);
+  for(const name of names){
+    const found=keys.find(k=>k.trim().toLowerCase()===name.toLowerCase());
+    if(found!==undefined)return(row[found]??"").toString();
+  }
+  return"";
+}
+
+function findExistingPend(descricao,empId,entrega,tecnico){
+  return pendencias.find(p=>
+    (p.descricao||"").trim().toUpperCase()===(descricao||"").trim().toUpperCase()&&
+    p.emp===empId&&p.entrega===entrega&&(p.tecnico||"").trim().toUpperCase()===(tecnico||"").trim().toUpperCase()
+  );
+}
+
+async function processPendImportRows(rowsBySheet){
+  let novos=0,ignorados=0,semEmpresa=0,filiaisCriadas=0,tecnicosCriados=0;
+  const empByLabel={};
+  empresas.forEach(em=>{empByLabel[em.label.trim().toUpperCase()]=em.id;});
+  const parseDate=v=>{
+    if(!v||v==="-")return"";
+    if(v instanceof Date)return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+    const s=v.toString().trim();
+    const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(m)return`${m[3]}-${m[2]}-${m[1]}`;
+    return"";
+  };
+  const parsedRows=[];
+  for(const rows of rowsBySheet){
+    for(const row of rows){
+      const instRaw=getRowField(row,"Instituicao","Instituição").trim();
+      if(!instRaw){ignorados++;continue;}
+      const empId=empByLabel[instRaw.toUpperCase()];
+      if(!empId){semEmpresa++;continue;}
+
+      const dreRaw=getRowField(row,"DRE").trim();
+      const dre=DRE_OPTIONS.find(d=>d.toUpperCase()===dreRaw.toUpperCase())||dreRaw;
+
+      let tecnico=getRowField(row,"Tecnico Responsavel","Técnico Responsável","Tecnico","Técnico").trim();
+      if(tecnico){
+        const existingTec=tecnicosPc.find(t=>t.nome.trim().toUpperCase()===tecnico.toUpperCase());
+        if(!existingTec){
+          try{await addDoc(collection(db,"tecnicos_pc"),{nome:tecnico,addedBy:user.uid,addedAt:serverTimestamp()});tecnicosCriados++;}catch(e){}
+        }else{tecnico=existingTec.nome;}
+      }
+
+      const filialRaw=getRowField(row,"Filial").trim();
+      let filialId="";
+      if(filialRaw){
+        let filObj=filiaisPc.find(f=>f.empId===empId&&f.label.trim().toUpperCase()===filialRaw.toUpperCase());
+        if(!filObj){
+          try{
+            const ordAtual=filiaisPc.filter(f=>f.empId===empId).length;
+            const ref=await addDoc(collection(db,"filiais_pc"),{empId,label:filialRaw,order:ordAtual,createdAt:serverTimestamp()});
+            filialId=ref.id;
+            filiaisPc.push({id:ref.id,empId,label:filialRaw,order:ordAtual});
+            filiaisCriadas++;
+          }catch(e){}
+        }else filialId=filObj.id;
+      }
+
+      const triRaw=getRowField(row,"Trimestre").trim();
+      const triMatch=triRaw.match(/([1-4])\D*TRI\D*(\d{4})/i);
+      const trimestre=triMatch?triMatch[1]:"1";
+      const ano=triMatch?Number(triMatch[2]):new Date().getFullYear();
+
+      const recebimento=parseDate(getRowField(row,"Recebimento"));
+      const entrega=parseDate(getRowField(row,"Entrega"));
+
+      const descRaw=getRowField(row,"Descricao","Descrição").trim();
+      const descricao=descRaw||"Outro";
+
+      const observacao=getRowField(row,"Observacao","Observação").trim();
+
+      const statusRaw=getRowField(row,"Status").trim().toUpperCase();
+      let status="nao_iniciado";
+      if(statusRaw.includes("PROCESSO"))status="em_processo";
+      else if(statusRaw.includes("AGUARD"))status="aguardando_cliente";
+
+      const data={
+        dre,tecnico,emp:empId,filial:filialId,trimestre,ano,recebimento,entrega,
+        descricao,observacao,status,createdBy:user.uid,createdAt:serverTimestamp()
+      };
+      const existing=findExistingPend(descricao,empId,entrega,tecnico);
+      parsedRows.push({data,existing});
+    }
+  }
+  const duplicates=parsedRows.filter(r=>r.existing);
+  const newOnes=parsedRows.filter(r=>!r.existing);
+
+  const finish=async(action)=>{
+    for(const r of newOnes){
+      try{await addDoc(collection(db,"pendencias_pc"),r.data);novos++;}catch(e){}
+    }
+    if(action==="overwrite"){
+      for(const r of duplicates){
+        try{const{createdAt,...rest}=r.data;await updateDoc(doc(db,"pendencias_pc",r.existing.id),rest);}catch(e){}
+      }
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} pendência(s) nova(s) importada(s)\n${action==="overwrite"?`🔄 ${duplicates.length} pendência(s) já existente(s) foram atualizadas\n`:duplicates.length?`⏭️ ${duplicates.length} pendência(s) já existente(s) foram ignoradas (sem alteração)\n`:""}${filiaisCriadas?`🏬 ${filiaisCriadas} filial(is) nova(s) cadastrada(s) automaticamente\n`:""}${tecnicosCriados?`🧑‍💼 ${tecnicosCriados} técnico(s) novo(s) cadastrado(s) automaticamente\n`:""}${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de instituição não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem instituição preenchida`:""}`);
+  };
+
+  if(duplicates.length){
+    const ov=document.createElement("div");
+    ov.className="modal-ov open";
+    ov.innerHTML=`<div class="modal" style="max-width:420px">
+      <h2>⚠️ Pendências já existentes</h2>
+      <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">Encontramos <strong>${duplicates.length}</strong> linha${duplicates.length!==1?"s":""} desta planilha que já ${duplicates.length!==1?"existem":"existe"} no sistema (mesma descrição, instituição, técnico e data de entrega). ${newOnes.length} linha${newOnes.length!==1?"s são novas e serão":" é nova e será"} importada${newOnes.length!==1?"s":""} normalmente. O que fazer com ${duplicates.length!==1?"as duplicadas":"a duplicada"}?</p>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnPendDupSkip">⏭️ Ignorar duplicadas</button>
+        <button class="btn-save-m" id="btnPendDupOverwrite">🔄 Substituir dados</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("#btnPendDupSkip").addEventListener("click",async()=>{ov.remove();await finish("skip");});
+    ov.querySelector("#btnPendDupOverwrite").addEventListener("click",async()=>{ov.remove();await finish("overwrite");});
+  }else{
+    await finish("skip");
+  }
+}
+
+document.getElementById("btnImportPendTrigger")?.addEventListener("click",()=>document.getElementById("importPendFile").click());
+document.getElementById("importPendFile")?.addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  e.target.value="";
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=window.XLSX.read(buf,{type:"array",cellDates:true});
+    const rowsBySheet=wb.SheetNames.map(sn=>window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""}));
+    await processPendImportRows(rowsBySheet);
+  }catch(err){alert("Erro ao importar: "+translateErr(err));}
+});
+
+document.addEventListener("paste",async e=>{
+  const activeView=document.querySelector(".view.active");
+  if(!activeView||activeView.id!=="view-pendencias")return;
+  if(["INPUT","TEXTAREA"].includes(e.target.tagName)||e.target.isContentEditable)return;
+  const text=e.clipboardData?.getData("text/plain")||"";
+  if(!text||!text.includes("\t"))return; // só age se parecer uma tabela colada do Excel (com tabulações)
+  e.preventDefault();
+  const rows=parseTSVToRows(text);
+  if(!rows.length){alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (DRE, Instituição, etc.) e as linhas de dados.");return;}
+  if(!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como pendências?`))return;
+  await processPendImportRows([rows]);
+});
+
+document.getElementById("btnExportPend")?.addEventListener("click",()=>{
+  const rows=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).map(p=>{
+    const emp=getEmp(p.emp);
+    const filObj=filiaisPc.find(f=>f.id===p.filial);
+    return{
+      DRE:p.dre||"",
+      "Tecnico Responsavel":p.tecnico||"",
+      Instituicao:emp.label,
+      Filial:filObj?filObj.label:"",
+      Trimestre:`${p.trimestre}° TRI ${p.ano}`,
+      Recebimento:p.recebimento?fmtD(p.recebimento):"",
+      Entrega:p.entrega?fmtD(p.entrega):"",
+      Descricao:p.descricao||"",
+      Observacao:p.observacao||"",
+      Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||""
+    };
+  });
+  if(!rows.length){alert("Nenhuma pendência encontrada.");return;}
+  const ws=window.XLSX.utils.json_to_sheet(rows);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Pendencias");
+  window.XLSX.writeFile(wb,`pendencias_prestacao_contas_${today()}.xlsx`);
+});
 
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
