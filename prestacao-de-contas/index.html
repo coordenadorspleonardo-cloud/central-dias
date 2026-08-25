@@ -433,6 +433,14 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
   <div id="deadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
 </div>
 
+<div id="certAluguelPopup" style="display:none;position:fixed;bottom:20px;right:334px;z-index:500;width:300px;max-width:calc(100vw - 24px);background:var(--s2);border:1px solid var(--imp);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
+  <div class="popup-drag-handle" style="background:rgba(224,140,58,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:move;">
+    <span style="font-size:.78rem;font-weight:700;color:var(--imp)">📜 Certificados/Aluguel vencendo (<span id="certAluguelPopupCount">0</span>)</span>
+    <button id="btnCloseCertAluguelPopup" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
+  </div>
+  <div id="certAluguelPopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
+</div>
+
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
@@ -494,6 +502,12 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
           <div class="multisel-wrap">
             <button type="button" id="f-emp-btn" class="multisel-btn">Selecionar empresas</button>
             <div id="f-emp-drop" class="multisel-drop" style="display:none"></div>
+          </div>
+        </div>
+        <div class="fg full"><label>🏬 Filiais/Unidades <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+          <div class="multisel-wrap">
+            <button type="button" id="f-filial-btn" class="multisel-btn">Nenhuma filial selecionada</button>
+            <div id="f-filial-drop" class="multisel-drop" style="display:none"></div>
           </div>
         </div>
         <div class="fg"><label>Prioridade</label>
@@ -596,6 +610,65 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
+  <div class="modal-ov" id="modalCertOv">
+    <div class="modal">
+      <h2 id="modalCertTitle">Novo Certificado</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>Empresa *</label>
+          <select id="cert-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="cert-filial"><option value="">— Em aberto —</option></select>
+        </div>
+        <div class="fg"><label>Tipo de Certificado *</label>
+          <select id="cert-tipo">
+            <option value="CMDCA">CMDCA</option>
+            <option value="CRCE">CRCE</option>
+            <option value="CENTS">CENTS</option>
+            <option value="Credenciamento">Credenciamento</option>
+            <option value="Outro">Outro</option>
+          </select>
+          <input type="text" id="cert-tipo-outro" placeholder="Descreva o tipo" style="display:none;margin-top:6px;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:6px 9px;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="fg"><label>Responsável (avisos)</label>
+          <select id="cert-responsavel"><option value="">— Ninguém —</option></select>
+        </div>
+        <div class="fg"><label>Validade *</label><input type="date" id="cert-validade"></div>
+        <div class="fg"><label>Renovação</label><input type="date" id="cert-renovacao"></div>
+        <div class="fg full"><label>Observação</label><input type="text" id="cert-observacao" placeholder="Opcional"></div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelCertModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSaveCert">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-ov" id="modalAluguelOv">
+    <div class="modal">
+      <h2 id="modalAluguelTitle">Novo Aluguel</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>Empresa *</label>
+          <select id="aluguel-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="aluguel-filial"><option value="">— Em aberto —</option></select>
+        </div>
+        <div class="fg"><label>Responsável (avisos)</label>
+          <select id="aluguel-responsavel"><option value="">— Ninguém —</option></select>
+        </div>
+        <div class="fg"><label>Valor do Aluguel</label><input type="text" id="aluguel-valor" placeholder="Ex: 1500,00"></div>
+        <div class="fg"><label>Validade *</label><input type="date" id="aluguel-validade"></div>
+        <div class="fg"><label>Renovação</label><input type="date" id="aluguel-renovacao"></div>
+        <div class="fg full"><label>Observação</label><input type="text" id="aluguel-observacao" placeholder="Opcional"></div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelAluguelModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSaveAluguel">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOCUS -->
   <div class="focus-overlay" id="focusOv">
     <div class="focus-hd">
@@ -656,6 +729,8 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
+    <button class="tab" data-tab="certificados">📜 Certificados <span class="tbadge" id="certTabBadge" style="display:none;background:var(--urg)"></span></button>
+    <button class="tab" data-tab="aluguel">🏠 Aluguel <span class="tbadge" id="aluguelTabBadge" style="display:none;background:var(--urg)"></span></button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
@@ -760,6 +835,24 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
       <div id="pendMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="pendList"></div>
+    </div>
+    <div class="view" id="view-certificados">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="certEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+        <button id="btnNewCert" class="btn-save-m" style="margin-left:auto">＋ Novo Certificado</button>
+      </div>
+      <div id="certSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="certList"></div>
+    </div>
+    <div class="view" id="view-aluguel">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="aluguelEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+        <button id="btnNewAluguel" class="btn-save-m" style="margin-left:auto">＋ Novo Aluguel</button>
+      </div>
+      <div id="aluguelSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="aluguelList"></div>
     </div>
     <div class="view" id="view-notas">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -972,7 +1065,7 @@ let unreadSoundTimer=null;
 
 let user=null, isAdmin=false, tasks=[], msgs=[], members=[], empresas=[];
 let empFilter="all", respFilter="all", searchQ="", editId=null;
-let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[];
+let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[], modalSelectedFiliais=[];
 let unsubT=null, unsubM=null, unsubMbr=null, unsubEmp=null, unsubPresence=null;
 let presenceData={};
 
@@ -981,6 +1074,11 @@ let filiaisPc=[], unsubFiliaisPc=null;
 let tecnicosPc=[], unsubTecnicosPc=null;
 let pendencias=[], unsubPendencias=null;
 let pendEmpFilter="all", pendStatusFilter="all", pendPeriodFilter="all", pendMiniDashExpanded=false, editPendId=null;
+
+// ── CERTIFICADOS e ALUGUEL (abas novas, 25/08/2026, só Prestação de Contas) ──
+let certificadosPc=[], unsubCertificadosPc=null, editCertId=null, certEmpFilter="all";
+let alugueisPc=[], unsubAlugueisPc=null, editAluguelId=null, aluguelEmpFilter="all";
+const CERT_TIPO_OPTIONS=["CMDCA","CRCE","CENTS","Credenciamento"];
 const DRE_OPTIONS=["Butantã","Guaianases","Ipiranga","Itaquera","Pirituba"];
 const PEND_DESCRICAO_OPTIONS=[
   "Bater saldo","Inserir extrato PP na aba rendimentos","Conciliar nota",
@@ -1198,7 +1296,7 @@ function isNotifMuted(){return Date.now()<notifMutedUntil;}
 
 function restorePopupPositions(){
   if(!user)return;
-  ["deadlinePopup"].forEach(id=>{
+  ["deadlinePopup","certAluguelPopup"].forEach(id=>{
     const popup=document.getElementById(id);if(!popup)return;
     const saved=JSON.parse(localStorage.getItem("popupPos_"+id+"_"+user.uid)||"null");
     if(saved){popup.style.left=saved.left;popup.style.top=saved.top;popup.style.right="auto";popup.style.bottom="auto";}
@@ -1231,7 +1329,7 @@ function makeDraggable(popupId){
     if(user)localStorage.setItem("popupPos_"+popupId+"_"+user.uid,JSON.stringify({left:popup.style.left,top:popup.style.top}));
   });
 }
-["deadlinePopup"].forEach(makeDraggable);
+["deadlinePopup","certAluguelPopup"].forEach(makeDraggable);
 
 function playChime(notes){
   if(isNotifMuted())return;
@@ -1567,7 +1665,7 @@ onAuthStateChanged(auth, async u=>{
       user=u; isAdmin=u.email===ADMIN_EMAIL||u.email===OVERSIGHT_EMAIL;
       await ensureMember(u);
       notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
-      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startCertAluguelChecks(); refreshMuteBtn(); restorePopupPositions();
     }catch(e){
       console.error("[Central Dias] Erro ao finalizar login:",e);
       setErr("errLogin","Erro ao entrar: "+translateErr(e));
@@ -1576,6 +1674,7 @@ onAuthStateChanged(auth, async u=>{
     stopPresence();
     stopNotificationListeners();
     stopDeadlineChecks();
+    stopCertAluguelChecks();
     user=null; isAdmin=false;
     stopListeners(); showLogin();
   }
@@ -1955,7 +2054,7 @@ document.getElementById("btnRemoveBg")?.addEventListener("click",async()=>{
 
 function startListeners(){
   empresas=[...DEF_EMPS];
-  renderEmpFilters(); renderEmpConfig(); renderPendEmpFilters(); populatePendEmpSel();
+  renderEmpFilters(); renderEmpConfig(); renderPendEmpFilters(); populatePendEmpSel(); renderCertEmpFilters(); renderAluguelEmpFilters();
   const empRef=doc(db,"config_pc","empresas");
   getDoc(empRef).then(snap=>{
     if(!snap.exists()) setDoc(empRef,{list:DEF_EMPS});
@@ -1965,6 +2064,7 @@ function startListeners(){
       empresas=[...snap.data().list].sort((a,b)=>(a.order||0)-(b.order||0));
       renderEmpFilters(); renderEmpConfig(); renderEmpMultiSelect(); renderEmpColorsPersonal(); renderAll();
       renderPendEmpFilters(); populatePendEmpSel(); renderFiliaisPcEmpSel(); renderPendencias();
+      renderCertEmpFilters(); renderAluguelEmpFilters(); renderCertificados(); renderAluguel();
     }
   });
   unsubT=onSnapshot(query(collection(db,"tasks_pc"),orderBy("createdAt","desc")),snap=>{
@@ -2047,8 +2147,16 @@ function startListeners(){
     pendencias=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderPendencias();
   },listenerErrorHandler("pendencias"));
+  unsubCertificadosPc=onSnapshot(collection(db,"certificados_pc"),snap=>{
+    certificadosPc=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderCertificados();
+  },listenerErrorHandler("certificados"));
+  unsubAlugueisPc=onSnapshot(collection(db,"alugueis_pc"),snap=>{
+    alugueisPc=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAluguel();
+  },listenerErrorHandler("aluguel"));
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubInvites,unsubFiliaisPc,unsubTecnicosPc,unsubPendencias].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubInvites,unsubFiliaisPc,unsubTecnicosPc,unsubPendencias,unsubCertificadosPc,unsubAlugueisPc].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -2347,11 +2455,49 @@ function renderEmpMultiSelect(){
   });
   const labels=modalSelectedEmps.map(id=>getEmp(id).label);
   btn.textContent=labels.length?labels.join(", "):"Selecionar empresas";
+  renderFilialMultiSelect();
 }
 document.getElementById("f-emp-btn")?.addEventListener("click",e=>{
   e.stopPropagation();
   const drop=document.getElementById("f-emp-drop");
   drop.style.display=drop.style.display==="none"?"block":"none";
+  document.getElementById("f-resp-drop").style.display="none";
+  document.getElementById("f-watch-drop").style.display="none";
+  const fd=document.getElementById("f-filial-drop");if(fd)fd.style.display="none";
+});
+
+function renderFilialMultiSelect(){
+  const drop=document.getElementById("f-filial-drop");const btn=document.getElementById("f-filial-btn");
+  if(!drop||!btn)return;
+  const validIds=new Set(filiaisPc.filter(f=>modalSelectedEmps.includes(f.empId)).map(f=>f.id));
+  modalSelectedFiliais=modalSelectedFiliais.filter(id=>validIds.has(id));
+  if(!modalSelectedEmps.length){
+    drop.innerHTML='<div style="padding:6px;font-size:.72rem;color:var(--text3)">Selecione uma empresa primeiro.</div>';
+  }else{
+    drop.innerHTML=modalSelectedEmps.map(empId=>{
+      const emp=getEmp(empId);
+      const list=filiaisPc.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+      if(!list.length)return`<div style="padding:4px 7px;font-size:.7rem;color:var(--text3);font-weight:700">${esc(emp.label)} — sem filiais cadastradas</div>`;
+      return`<div style="padding:4px 7px 2px;font-size:.7rem;color:${emp.color};font-weight:700">${esc(emp.label)}</div>`+
+        list.map(f=>`<label class="multisel-opt"><input type="checkbox" data-filial-opt="${f.id}" ${modalSelectedFiliais.includes(f.id)?"checked":""}>${esc(f.label)}</label>`).join("");
+    }).join("");
+    drop.querySelectorAll("[data-filial-opt]").forEach(cb=>{
+      cb.addEventListener("change",function(){
+        const id=this.dataset.filialOpt;
+        if(this.checked){if(!modalSelectedFiliais.includes(id))modalSelectedFiliais.push(id);}
+        else{modalSelectedFiliais=modalSelectedFiliais.filter(x=>x!==id);}
+        renderFilialMultiSelect();
+      });
+    });
+  }
+  const labels=modalSelectedFiliais.map(id=>filiaisPc.find(f=>f.id===id)?.label).filter(Boolean);
+  btn.textContent=labels.length?labels.join(", "):"Nenhuma filial selecionada";
+}
+document.getElementById("f-filial-btn")?.addEventListener("click",e=>{
+  e.stopPropagation();
+  const drop=document.getElementById("f-filial-drop");
+  drop.style.display=drop.style.display==="none"?"block":"none";
+  document.getElementById("f-emp-drop").style.display="none";
   document.getElementById("f-resp-drop").style.display="none";
   document.getElementById("f-watch-drop").style.display="none";
 });
@@ -2483,6 +2629,7 @@ function taskFlagBtn(t,field,label,canEdit){
 
 function buildCard(t){
   const emps=taskEmps(t).map(id=>getEmp(id));
+  const filiaisSel=(t.filiais||[]).map(id=>filiaisPc.find(f=>f.id===id)).filter(Boolean);
   const primaryEmp=emps[0]||{color:"#606078"};
   const pr=PRIOS[t.prio]||PRIOS.nor;
   const resps=taskResps(t).map(id=>members.find(m=>m.id===id)).filter(Boolean);
@@ -2501,6 +2648,7 @@ function buildCard(t){
         <span class="tag ${pr.tc}">${pr.l}</span>
         ${overdue?`<span class="tag overdue-badge">⚠️ Prazo vencido</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
+        ${filiaisSel.map(f=>`<span class="tag" style="background:var(--s3);color:var(--text2)">🏬 ${esc(f.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="${avBg(resp)}">${avInner(resp)}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
         ${taskFlagBtn(t,"realizado","Realizado",canEdit)}
@@ -3187,15 +3335,17 @@ document.getElementById("f-precisa-conf")?.addEventListener("change",function(){
 });
 
 document.addEventListener("click",()=>{
-  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop"),d4=document.getElementById("f-conf-drop");
+  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop"),d4=document.getElementById("f-conf-drop"),d5=document.getElementById("f-filial-drop");
   if(d1)d1.style.display="none";
   if(d2)d2.style.display="none";
   if(d3)d3.style.display="none";
   if(d4)d4.style.display="none";
+  if(d5)d5.style.display="none";
 });
 document.getElementById("f-emp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-resp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-watch-drop")?.addEventListener("click",e=>e.stopPropagation());
+document.getElementById("f-filial-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-conf-drop")?.addEventListener("click",e=>e.stopPropagation());
 
 function nextRecurrenceDate(dateStr,type){
@@ -3418,6 +3568,7 @@ function openModal(id){
   modalSelectedResps=t?taskResps(t):[];
   modalSelectedWatchers=t?(t.watchers||[]):[];
   modalSelectedConferentes=t?(t.conferentes||[]):[];
+  modalSelectedFiliais=t?(t.filiais||[]):[];
   document.getElementById("f-precisa-conf").checked=t?!!t.precisaConferencia:false;
   document.getElementById("f-conf-wrap").style.display=(t&&t.precisaConferencia)?"block":"none";
   renderEmpMultiSelect();
@@ -3442,6 +3593,7 @@ async function saveTask(){
   const precisaConferencia=document.getElementById("f-precisa-conf").checked;
   const data={tit,det:document.getElementById("f-det").value.trim(),
     emp:[...modalSelectedEmps],
+    filiais:[...modalSelectedFiliais],
     prio:document.getElementById("f-prio").value,
     date:document.getElementById("f-data").value,
     hora:document.getElementById("f-hora").value||"",
@@ -4304,7 +4456,7 @@ function buildPendCard(p){
       <div class="t-detail">${p.dre?esc(p.dre)+" · ":""}Técnico: ${p.tecnico?esc(p.tecnico):"em aberto"} · ${esc(pendTrimestreLabel(p.trimestre))} ${esc(String(p.ano||""))}${p.observacao?" · "+esc(p.observacao):""}</div>
       <div class="t-meta">
         <span class="tag" style="background:${statusColor};color:${statusTextColor}">${esc(statusInfo.l)}</span>
-        ${overdue?`<span class="tag overdue-badge">⚠️ Vencida</span>`:""}
+        ${overdue?`<span class="tag overdue-badge">⚠️ Vencida</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
         ${p.recebimento?`<span class="tag" style="background:var(--s3);color:var(--text2)">Recebimento ${fmtD(p.recebimento)}</span>`:""}
         ${p.entrega?`<span class="tag" style="background:var(--s3);color:var(--text2)">Entrega ${fmtD(p.entrega)}</span>`:""}
       </div>
@@ -4320,8 +4472,498 @@ function buildPendCard(p){
   }
   div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openPendModal(p.id);});
   div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deletePend(p.id);});
+  div.querySelector(".btn-postpone")?.addEventListener("click",e=>{
+    e.stopPropagation();
+    openPostponePendModal(p.id);
+  });
   return div;
 }
+
+function openPostponePendModal(pendId){
+  const p=pendencias.find(x=>x.id===pendId);if(!p)return;
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:380px">
+    <h2>📅 Prorrogar prazo</h2>
+    <div class="fg full" style="margin-bottom:10px"><label>Nova data de Entrega</label><input type="date" id="postpone-pend-date" value="${p.entrega||""}"></div>
+    <div class="fg full"><label>Justificativa *</label><textarea id="postpone-pend-motivo" placeholder="Por que o prazo está sendo prorrogado?"></textarea></div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCancelPostponePend">Cancelar</button>
+      <button class="btn-save-m" id="btnConfirmPostponePend">Salvar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCancelPostponePend").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnConfirmPostponePend").addEventListener("click",async()=>{
+    const novaData=ov.querySelector("#postpone-pend-date").value;
+    const motivo=ov.querySelector("#postpone-pend-motivo").value.trim();
+    if(!novaData){alert("Selecione a nova data.");return;}
+    if(!motivo){alert("A justificativa é obrigatória para prorrogar o prazo.");return;}
+    const dataAntiga=p.entrega?fmtD(p.entrega):"sem data";
+    const logLine=`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)} em ${fmtD(today())}. Motivo: ${motivo}`;
+    const novaObs=(p.observacao?p.observacao+"\n\n":"")+logLine;
+    try{
+      await updateDoc(doc(db,"pendencias_pc",pendId),{entrega:novaData,observacao:novaObs});
+      ov.remove();
+    }catch(e){alert("Erro: "+translateErr(e));}
+  });
+}
+
+// ══════════════ CERTIFICADOS e ALUGUEL (abas novas, 25/08/2026) ══════════════
+function inFourMonths(dateStr){
+  if(!dateStr)return false;
+  const d=new Date();
+  d.setMonth(d.getMonth()+4);
+  const limite=d.toISOString().split("T")[0];
+  return dateStr<=limite;
+}
+
+// --- Selects comuns aos dois modais ---
+function populateCertEmpSel(){
+  const sel=document.getElementById("cert-emp");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+}
+function populateCertFilialSel(empId){
+  const sel=document.getElementById("cert-filial");if(!sel)return;
+  const list=filiaisPc.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  sel.innerHTML='<option value="">— Em aberto —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+function populateCertResponsavelSel(){
+  const sel=document.getElementById("cert-responsavel");if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Ninguém —</option>'+sortedMembers().map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+document.getElementById("cert-emp")?.addEventListener("change",function(){populateCertFilialSel(this.value);});
+document.getElementById("cert-tipo")?.addEventListener("change",function(){
+  document.getElementById("cert-tipo-outro").style.display=this.value==="Outro"?"block":"none";
+});
+
+function populateAluguelEmpSel(){
+  const sel=document.getElementById("aluguel-emp");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+}
+function populateAluguelFilialSel(empId){
+  const sel=document.getElementById("aluguel-filial");if(!sel)return;
+  const list=filiaisPc.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  sel.innerHTML='<option value="">— Em aberto —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+function populateAluguelResponsavelSel(){
+  const sel=document.getElementById("aluguel-responsavel");if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Ninguém —</option>'+sortedMembers().map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+document.getElementById("aluguel-emp")?.addEventListener("change",function(){populateAluguelFilialSel(this.value);});
+
+// --- Certificados: modal abrir / fechar / salvar / excluir ---
+function openCertModal(id){
+  editCertId=id||null;
+  const c=id?certificadosPc.find(x=>x.id===id):null;
+  document.getElementById("modalCertTitle").textContent=c?"Editar Certificado":"Novo Certificado";
+  populateCertEmpSel();
+  populateCertResponsavelSel();
+  document.getElementById("cert-emp").value=c?c.emp:(document.getElementById("cert-emp").options[0]?.value||"");
+  populateCertFilialSel(document.getElementById("cert-emp").value);
+  document.getElementById("cert-filial").value=c?c.filial||"":"";
+  const isOutro=!!(c&&c.tipo&&!CERT_TIPO_OPTIONS.includes(c.tipo));
+  document.getElementById("cert-tipo").value=isOutro?"Outro":(c?c.tipo||CERT_TIPO_OPTIONS[0]:CERT_TIPO_OPTIONS[0]);
+  document.getElementById("cert-tipo-outro").style.display=isOutro?"block":"none";
+  document.getElementById("cert-tipo-outro").value=isOutro?c.tipo:"";
+  document.getElementById("cert-responsavel").value=c?c.responsavel||"":"";
+  document.getElementById("cert-validade").value=c?c.validade||"":"";
+  document.getElementById("cert-renovacao").value=c?c.renovacao||"":"";
+  document.getElementById("cert-observacao").value=c?c.observacao||"":"";
+  document.getElementById("modalCertOv").classList.add("open");
+}
+function closeCertModal(){document.getElementById("modalCertOv").classList.remove("open");editCertId=null;}
+document.getElementById("btnNewCert")?.addEventListener("click",()=>openCertModal());
+document.getElementById("btnCancelCertModal")?.addEventListener("click",closeCertModal);
+document.getElementById("modalCertOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closeCertModal();});
+
+document.getElementById("btnSaveCert")?.addEventListener("click",async()=>{
+  const emp=document.getElementById("cert-emp").value;
+  if(!emp){alert("Selecione a empresa.");return;}
+  let tipo=document.getElementById("cert-tipo").value;
+  if(tipo==="Outro"){
+    tipo=document.getElementById("cert-tipo-outro").value.trim();
+    if(!tipo){alert("Descreva o tipo de certificado.");return;}
+  }
+  const validade=document.getElementById("cert-validade").value;
+  if(!validade){alert("Informe a data de validade.");return;}
+  const data={
+    emp,
+    filial:document.getElementById("cert-filial").value,
+    tipo,
+    responsavel:document.getElementById("cert-responsavel").value,
+    validade,
+    renovacao:document.getElementById("cert-renovacao").value,
+    observacao:document.getElementById("cert-observacao").value.trim(),
+    createdBy:user.uid
+  };
+  try{
+    if(editCertId){await updateDoc(doc(db,"certificados_pc",editCertId),data);}
+    else{data.createdAt=serverTimestamp();await addDoc(collection(db,"certificados_pc"),data);}
+    closeCertModal();
+  }catch(e){alert("Erro: "+translateErr(e));}
+});
+async function deleteCert(id){
+  if(!confirm("Excluir este certificado?"))return;
+  try{await deleteDoc(doc(db,"certificados_pc",id));}catch(e){alert("Erro: "+translateErr(e));}
+}
+
+// --- Aluguel: modal abrir / fechar / salvar / excluir ---
+function openAluguelModal(id){
+  editAluguelId=id||null;
+  const a=id?alugueisPc.find(x=>x.id===id):null;
+  document.getElementById("modalAluguelTitle").textContent=a?"Editar Aluguel":"Novo Aluguel";
+  populateAluguelEmpSel();
+  populateAluguelResponsavelSel();
+  document.getElementById("aluguel-emp").value=a?a.emp:(document.getElementById("aluguel-emp").options[0]?.value||"");
+  populateAluguelFilialSel(document.getElementById("aluguel-emp").value);
+  document.getElementById("aluguel-filial").value=a?a.filial||"":"";
+  document.getElementById("aluguel-responsavel").value=a?a.responsavel||"":"";
+  document.getElementById("aluguel-valor").value=a?a.valor||"":"";
+  document.getElementById("aluguel-validade").value=a?a.validade||"":"";
+  document.getElementById("aluguel-renovacao").value=a?a.renovacao||"":"";
+  document.getElementById("aluguel-observacao").value=a?a.observacao||"":"";
+  document.getElementById("modalAluguelOv").classList.add("open");
+}
+function closeAluguelModal(){document.getElementById("modalAluguelOv").classList.remove("open");editAluguelId=null;}
+document.getElementById("btnNewAluguel")?.addEventListener("click",()=>openAluguelModal());
+document.getElementById("btnCancelAluguelModal")?.addEventListener("click",closeAluguelModal);
+document.getElementById("modalAluguelOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closeAluguelModal();});
+
+document.getElementById("btnSaveAluguel")?.addEventListener("click",async()=>{
+  const emp=document.getElementById("aluguel-emp").value;
+  if(!emp){alert("Selecione a empresa.");return;}
+  const validade=document.getElementById("aluguel-validade").value;
+  if(!validade){alert("Informe a data de validade.");return;}
+  const data={
+    emp,
+    filial:document.getElementById("aluguel-filial").value,
+    responsavel:document.getElementById("aluguel-responsavel").value,
+    valor:document.getElementById("aluguel-valor").value.trim(),
+    validade,
+    renovacao:document.getElementById("aluguel-renovacao").value,
+    observacao:document.getElementById("aluguel-observacao").value.trim(),
+    createdBy:user.uid
+  };
+  try{
+    if(editAluguelId){await updateDoc(doc(db,"alugueis_pc",editAluguelId),data);}
+    else{data.createdAt=serverTimestamp();await addDoc(collection(db,"alugueis_pc"),data);}
+    closeAluguelModal();
+  }catch(e){alert("Erro: "+translateErr(e));}
+});
+async function deleteAluguel(id){
+  if(!confirm("Excluir este aluguel?"))return;
+  try{await deleteDoc(doc(db,"alugueis_pc",id));}catch(e){alert("Erro: "+translateErr(e));}
+}
+
+// --- Filtros por empresa ---
+function renderCertEmpFilters(){
+  const c=document.getElementById("certEmpFilters");if(!c)return;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  c.innerHTML=`<button class="fp${certEmpFilter==="all"?" on":""}" data-certemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${certEmpFilter===e.id?" on":""}" data-certemp="${e.id}" style="${certEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll("[data-certemp]").forEach(btn=>{
+    btn.addEventListener("click",()=>{certEmpFilter=btn.dataset.certemp;renderCertEmpFilters();renderCertificados();});
+  });
+}
+function renderAluguelEmpFilters(){
+  const c=document.getElementById("aluguelEmpFilters");if(!c)return;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  c.innerHTML=`<button class="fp${aluguelEmpFilter==="all"?" on":""}" data-aluguelemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${aluguelEmpFilter===e.id?" on":""}" data-aluguelemp="${e.id}" style="${aluguelEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll("[data-aluguelemp]").forEach(btn=>{
+    btn.addEventListener("click",()=>{aluguelEmpFilter=btn.dataset.aluguelemp;renderAluguelEmpFilters();renderAluguel();});
+  });
+}
+
+// --- Renderização agrupada por empresa → filial (mesmo padrão de Pendências) ---
+function renderCertificados(){
+  const list=document.getElementById("certList");if(!list)return;
+  const allVis=isAdmin?certificadosPc:certificadosPc.filter(c=>!getEmp(c.emp).adminOnly);
+  let vis=allVis;
+  if(certEmpFilter!=="all")vis=vis.filter(c=>c.emp===certEmpFilter);
+
+  const hoje=today();
+  const vencidos=allVis.filter(c=>c.validade&&c.validade<hoje).length;
+  const proximos=allVis.filter(c=>c.validade&&c.validade>=hoje&&inFourMonths(c.validade)).length;
+  const summary=document.getElementById("certSummary");
+  if(summary)summary.textContent=`📜 ${allVis.length} certificado${allVis.length!==1?"s":""} no total · ⚠️ ${vencidos} vencido(s) · ⏰ ${proximos} vencendo em até 4 meses`;
+
+  const badge=document.getElementById("certTabBadge");
+  const alertCount=vencidos+proximos;
+  if(badge){
+    if(alertCount>0){badge.style.display="inline-flex";badge.textContent=alertCount;}
+    else badge.style.display="none";
+  }
+
+  if(!vis.length){list.innerHTML='<div class="empty">Nenhum certificado cadastrado com esses filtros.</div>';return;}
+
+  const byEmp={};
+  vis.forEach(c=>{(byEmp[c.emp]||(byEmp[c.emp]=[])).push(c);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empKey="cert:emp:"+empId;
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
+    list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
+
+    const byFilial={};
+    byEmp[empId].forEach(c=>{
+      const filObj=filiaisPc.find(f=>f.id===c.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(c);
+    });
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="cert:filial:"+empId+":"+filKey;
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
+      byFilial[filKey].items.sort((a,b)=>(a.validade||"").localeCompare(b.validade||"")).forEach(c=>ct.appendChild(buildCertCard(c)));
+    });
+  });
+}
+
+function buildCertCard(c){
+  const canEdit=isAdmin||c.createdBy===user?.uid;
+  const vencido=!!(c.validade&&c.validade<today());
+  const proximo=!vencido&&inFourMonths(c.validade);
+  const resp=members.find(m=>m.id===c.responsavel);
+  const div=document.createElement("div");
+  div.className=`task${vencido?" overdue":""}`;
+  div.innerHTML=`
+    <div class="t-body">
+      <div class="t-title">📜 ${esc(c.tipo||"")}</div>
+      <div class="t-detail">Responsável: ${resp?esc(resp.name):"não definido"}${c.observacao?" · "+esc(c.observacao):""}</div>
+      <div class="t-meta">
+        ${vencido?`<span class="tag overdue-badge">⚠️ Vencido</span>`:proximo?`<span class="tag" style="background:rgba(224,140,58,.16);color:var(--imp)">⏰ Vencendo em breve</span>`:""}
+        ${c.validade?`<span class="tag" style="background:var(--s3);color:var(--text2)">Validade ${fmtD(c.validade)}</span>`:""}
+        ${c.renovacao?`<span class="tag" style="background:var(--s3);color:var(--text2)">Renovação ${fmtD(c.renovacao)}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  if(canEdit){
+    div.addEventListener("click",e=>{
+      if(e.target.closest("button"))return;
+      openCertModal(c.id);
+    });
+  }
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openCertModal(c.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deleteCert(c.id);});
+  return div;
+}
+
+function renderAluguel(){
+  const list=document.getElementById("aluguelList");if(!list)return;
+  const allVis=isAdmin?alugueisPc:alugueisPc.filter(a=>!getEmp(a.emp).adminOnly);
+  let vis=allVis;
+  if(aluguelEmpFilter!=="all")vis=vis.filter(a=>a.emp===aluguelEmpFilter);
+
+  const hoje=today();
+  const vencidos=allVis.filter(a=>a.validade&&a.validade<hoje).length;
+  const proximos=allVis.filter(a=>a.validade&&a.validade>=hoje&&inFourMonths(a.validade)).length;
+  const summary=document.getElementById("aluguelSummary");
+  if(summary)summary.textContent=`🏠 ${allVis.length} aluguel(éis) no total · ⚠️ ${vencidos} vencido(s) · ⏰ ${proximos} vencendo em até 4 meses`;
+
+  const badge=document.getElementById("aluguelTabBadge");
+  const alertCount=vencidos+proximos;
+  if(badge){
+    if(alertCount>0){badge.style.display="inline-flex";badge.textContent=alertCount;}
+    else badge.style.display="none";
+  }
+
+  if(!vis.length){list.innerHTML='<div class="empty">Nenhum aluguel cadastrado com esses filtros.</div>';return;}
+
+  const byEmp={};
+  vis.forEach(a=>{(byEmp[a.emp]||(byEmp[a.emp]=[])).push(a);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empKey="aluguel:emp:"+empId;
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
+    list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
+
+    const byFilial={};
+    byEmp[empId].forEach(a=>{
+      const filObj=filiaisPc.find(f=>f.id===a.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(a);
+    });
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="aluguel:filial:"+empId+":"+filKey;
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
+      byFilial[filKey].items.sort((a,b)=>(a.validade||"").localeCompare(b.validade||"")).forEach(a=>ct.appendChild(buildAluguelCard(a)));
+    });
+  });
+}
+
+function buildAluguelCard(a){
+  const canEdit=isAdmin||a.createdBy===user?.uid;
+  const vencido=!!(a.validade&&a.validade<today());
+  const proximo=!vencido&&inFourMonths(a.validade);
+  const resp=members.find(m=>m.id===a.responsavel);
+  const div=document.createElement("div");
+  div.className=`task${vencido?" overdue":""}`;
+  div.innerHTML=`
+    <div class="t-body">
+      <div class="t-title">🏠 Aluguel${a.valor?" — R$ "+esc(a.valor):""}</div>
+      <div class="t-detail">Responsável: ${resp?esc(resp.name):"não definido"}${a.observacao?" · "+esc(a.observacao):""}</div>
+      <div class="t-meta">
+        ${vencido?`<span class="tag overdue-badge">⚠️ Vencido</span>`:proximo?`<span class="tag" style="background:rgba(224,140,58,.16);color:var(--imp)">⏰ Vencendo em breve</span>`:""}
+        ${a.validade?`<span class="tag" style="background:var(--s3);color:var(--text2)">Validade ${fmtD(a.validade)}</span>`:""}
+        ${a.renovacao?`<span class="tag" style="background:var(--s3);color:var(--text2)">Renovação ${fmtD(a.renovacao)}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  if(canEdit){
+    div.addEventListener("click",e=>{
+      if(e.target.closest("button"))return;
+      openAluguelModal(a.id);
+    });
+  }
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openAluguelModal(a.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deleteAluguel(a.id);});
+  return div;
+}
+
+// ── POP-UP DE VENCIMENTO: CERTIFICADOS E ALUGUEL (aparece todo dia, até 3x/dia) ──
+let certAluguelCheckInterval=null;
+let certAluguelPopupVisible=false;
+const CERT_ALUGUEL_MAX_SHOWS_PER_DAY=3;
+const CERT_ALUGUEL_MIN_SPACING_MS=3*60*60*1000; // ~3h entre exibições, pra espalhar as 3x ao longo do dia
+
+function certAluguelPopupState(){
+  if(!user)return{date:"",count:0,lastShownAt:0};
+  try{
+    const raw=JSON.parse(localStorage.getItem("certAluguelPopupState_"+user.uid)||"null");
+    const hoje=today();
+    if(!raw||raw.date!==hoje)return{date:hoje,count:0,lastShownAt:0};
+    return raw;
+  }catch(e){return{date:today(),count:0,lastShownAt:0};}
+}
+function saveCertAluguelPopupState(st){
+  if(!user)return;
+  try{localStorage.setItem("certAluguelPopupState_"+user.uid,JSON.stringify(st));}catch(e){}
+}
+
+function getCertAluguelAlerts(){
+  if(!user)return{venc:[],prox:[]};
+  const items=[
+    ...certificadosPc.map(c=>({...c,_tipo:"cert",_titulo:"📜 "+(c.tipo||"Certificado")})),
+    ...alugueisPc.map(a=>({...a,_tipo:"aluguel",_titulo:"🏠 Aluguel"+(a.valor?" — R$ "+a.valor:"")})),
+  ].filter(it=>it.responsavel===user.uid&&it.validade);
+  const hoje=today();
+  const venc=items.filter(it=>it.validade<hoje);
+  const prox=items.filter(it=>it.validade>=hoje&&inFourMonths(it.validade));
+  return{venc,prox};
+}
+
+function renderCertAluguelPopupList(alerts){
+  const list=document.getElementById("certAluguelPopupList");if(!list)return;
+  const section=(items,label)=>{
+    if(!items.length)return"";
+    return`<div style="font-size:.62rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
+      items.map(it=>`<div class="deadline-item" data-tipo="${it._tipo}" data-id="${it.id}">
+        <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(getEmp(it.emp).label)} — ${it._titulo}</div>
+        <div style="font-size:.66rem;color:var(--text2);margin-top:2px">Validade: ${fmtD(it.validade)}</div>
+      </div>`).join("");
+  };
+  list.innerHTML=section(alerts.venc,"⚠️ Vencidos")+section(alerts.prox,"⏰ Vencendo em até 4 meses");
+  list.querySelectorAll(".deadline-item").forEach(el=>{
+    el.addEventListener("click",()=>{
+      document.querySelector(`[data-tab="${el.dataset.tipo==="cert"?"certificados":"aluguel"}"]`)?.click();
+      if(el.dataset.tipo==="cert")openCertModal(el.dataset.id);else openAluguelModal(el.dataset.id);
+      document.getElementById("certAluguelPopup").style.display="none";
+      certAluguelPopupVisible=false;
+    });
+  });
+}
+
+function updateCertAluguelPopup(){
+  const popup=document.getElementById("certAluguelPopup");if(!popup||!user)return;
+  if(isNotifMuted()){popup.style.display="none";certAluguelPopupVisible=false;return;}
+  const alerts=getCertAluguelAlerts();
+  const total=alerts.venc.length+alerts.prox.length;
+  if(!total){popup.style.display="none";certAluguelPopupVisible=false;return;}
+  if(certAluguelPopupVisible){
+    renderCertAluguelPopupList(alerts);
+    const countEl=document.getElementById("certAluguelPopupCount");if(countEl)countEl.textContent=total;
+    return;
+  }
+  const st=certAluguelPopupState();
+  if(st.count>=CERT_ALUGUEL_MAX_SHOWS_PER_DAY)return;
+  if(st.lastShownAt&&Date.now()-st.lastShownAt<CERT_ALUGUEL_MIN_SPACING_MS)return;
+  renderCertAluguelPopupList(alerts);
+  const countEl=document.getElementById("certAluguelPopupCount");if(countEl)countEl.textContent=total;
+  popup.style.display="block";
+  certAluguelPopupVisible=true;
+  soundDeadlineAlert();
+  saveCertAluguelPopupState({date:today(),count:st.count+1,lastShownAt:Date.now()});
+}
+
+function startCertAluguelChecks(){
+  updateCertAluguelPopup();
+  certAluguelCheckInterval=setInterval(updateCertAluguelPopup,60*1000);
+}
+function stopCertAluguelChecks(){
+  clearInterval(certAluguelCheckInterval);
+  certAluguelCheckInterval=null;
+  certAluguelPopupVisible=false;
+  const popup=document.getElementById("certAluguelPopup");
+  if(popup)popup.style.display="none";
+}
+document.getElementById("btnCloseCertAluguelPopup")?.addEventListener("click",()=>{
+  document.getElementById("certAluguelPopup").style.display="none";
+  certAluguelPopupVisible=false;
+});
 
 // --- Import/Export Excel + colar (Ctrl+V) ---
 function parseTSVToRows(text){
