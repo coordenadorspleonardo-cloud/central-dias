@@ -512,6 +512,12 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
             <div id="f-emp-drop" class="multisel-drop" style="display:none"></div>
           </div>
         </div>
+        <div class="fg full"><label>🏬 Filiais/Unidades <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+          <div class="multisel-wrap">
+            <button type="button" id="f-filial-btn" class="multisel-btn">Nenhuma filial selecionada</button>
+            <div id="f-filial-drop" class="multisel-drop" style="display:none"></div>
+          </div>
+        </div>
         <div class="fg"><label>Prioridade</label>
           <select id="f-prio">
             <option value="urg">🔴 Urgente</option>
@@ -976,7 +982,7 @@ let unreadSoundTimer=null;
 
 let user=null, isAdmin=false, tasks=[], msgs=[], members=[], empresas=[];
 let empFilter="all", respFilter="all", searchQ="", editId=null;
-let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[];
+let modalSelectedEmps=[], modalSelectedResps=[], modalSelectedWatchers=[], modalSelectedConferentes=[], modalSelectedFiliais=[];
 let unsubT=null, unsubM=null, unsubMbr=null, unsubEmp=null, unsubPresence=null;
 let presenceData={};
 
@@ -2333,11 +2339,49 @@ function renderEmpMultiSelect(){
   });
   const labels=modalSelectedEmps.map(id=>getEmp(id).label);
   btn.textContent=labels.length?labels.join(", "):"Selecionar empresas";
+  renderFilialMultiSelect();
 }
 document.getElementById("f-emp-btn")?.addEventListener("click",e=>{
   e.stopPropagation();
   const drop=document.getElementById("f-emp-drop");
   drop.style.display=drop.style.display==="none"?"block":"none";
+  document.getElementById("f-resp-drop").style.display="none";
+  document.getElementById("f-watch-drop").style.display="none";
+  const fd=document.getElementById("f-filial-drop");if(fd)fd.style.display="none";
+});
+
+function renderFilialMultiSelect(){
+  const drop=document.getElementById("f-filial-drop");const btn=document.getElementById("f-filial-btn");
+  if(!drop||!btn)return;
+  const validIds=new Set(filiais.filter(f=>modalSelectedEmps.includes(f.empId)).map(f=>f.id));
+  modalSelectedFiliais=modalSelectedFiliais.filter(id=>validIds.has(id));
+  if(!modalSelectedEmps.length){
+    drop.innerHTML='<div style="padding:6px;font-size:.72rem;color:var(--text3)">Selecione uma empresa primeiro.</div>';
+  }else{
+    drop.innerHTML=modalSelectedEmps.map(empId=>{
+      const emp=getEmp(empId);
+      const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+      if(!list.length)return`<div style="padding:4px 7px;font-size:.7rem;color:var(--text3);font-weight:700">${esc(emp.label)} — sem filiais cadastradas</div>`;
+      return`<div style="padding:4px 7px 2px;font-size:.7rem;color:${emp.color};font-weight:700">${esc(emp.label)}</div>`+
+        list.map(f=>`<label class="multisel-opt"><input type="checkbox" data-filial-opt="${f.id}" ${modalSelectedFiliais.includes(f.id)?"checked":""}>${esc(f.label)}</label>`).join("");
+    }).join("");
+    drop.querySelectorAll("[data-filial-opt]").forEach(cb=>{
+      cb.addEventListener("change",function(){
+        const id=this.dataset.filialOpt;
+        if(this.checked){if(!modalSelectedFiliais.includes(id))modalSelectedFiliais.push(id);}
+        else{modalSelectedFiliais=modalSelectedFiliais.filter(x=>x!==id);}
+        renderFilialMultiSelect();
+      });
+    });
+  }
+  const labels=modalSelectedFiliais.map(id=>filiais.find(f=>f.id===id)?.label).filter(Boolean);
+  btn.textContent=labels.length?labels.join(", "):"Nenhuma filial selecionada";
+}
+document.getElementById("f-filial-btn")?.addEventListener("click",e=>{
+  e.stopPropagation();
+  const drop=document.getElementById("f-filial-drop");
+  drop.style.display=drop.style.display==="none"?"block":"none";
+  document.getElementById("f-emp-drop").style.display="none";
   document.getElementById("f-resp-drop").style.display="none";
   document.getElementById("f-watch-drop").style.display="none";
 });
@@ -2469,6 +2513,7 @@ function taskFlagBtn(t,field,label,canEdit){
 
 function buildCard(t){
   const emps=taskEmps(t).map(id=>getEmp(id));
+  const filiaisSel=(t.filiais||[]).map(id=>filiais.find(f=>f.id===id)).filter(Boolean);
   const primaryEmp=emps[0]||{color:"#606078"};
   const pr=PRIOS[t.prio]||PRIOS.nor;
   const resps=taskResps(t).map(id=>members.find(m=>m.id===id)).filter(Boolean);
@@ -2487,6 +2532,7 @@ function buildCard(t){
         <span class="tag ${pr.tc}">${pr.l}</span>
         ${overdue?`<span class="tag overdue-badge">⚠️ Prazo vencido</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
         ${emps.map(emp=>`<span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>`).join("")}
+        ${filiaisSel.map(f=>`<span class="tag" style="background:var(--s3);color:var(--text2)">🏬 ${esc(f.label)}</span>`).join("")}
         ${resps.map(resp=>`<div class="resp-pill"><div class="resp-avatar" style="${avBg(resp)}">${avInner(resp)}</div>${esc(resp.name)}</div>`).join("")}
         ${(t.watchers||[]).includes(user?.uid)?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">👁️ Acompanhando</span>`:""}
         ${taskFlagBtn(t,"realizado","Realizado",canEdit)}
@@ -3174,16 +3220,18 @@ document.getElementById("f-precisa-conf")?.addEventListener("change",function(){
 });
 
 document.addEventListener("click",()=>{
-  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop"),d4=document.getElementById("f-conf-drop");
+  const d1=document.getElementById("f-emp-drop"),d2=document.getElementById("f-resp-drop"),d3=document.getElementById("f-watch-drop"),d4=document.getElementById("f-conf-drop"),d5=document.getElementById("f-filial-drop");
   if(d1)d1.style.display="none";
   if(d2)d2.style.display="none";
   if(d3)d3.style.display="none";
   if(d4)d4.style.display="none";
+  if(d5)d5.style.display="none";
 });
 document.getElementById("f-emp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-resp-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-watch-drop")?.addEventListener("click",e=>e.stopPropagation());
 document.getElementById("f-conf-drop")?.addEventListener("click",e=>e.stopPropagation());
+document.getElementById("f-filial-drop")?.addEventListener("click",e=>e.stopPropagation());
 
 function nextRecurrenceDate(dateStr,type){
   const d=new Date((dateStr||today())+"T00:00:00");
@@ -3406,6 +3454,7 @@ function openModal(id){
   modalSelectedResps=t?taskResps(t):[];
   modalSelectedWatchers=t?(t.watchers||[]):[];
   modalSelectedConferentes=t?(t.conferentes||[]):[];
+  modalSelectedFiliais=t?(t.filiais||[]):[];
   document.getElementById("f-precisa-conf").checked=t?!!t.precisaConferencia:false;
   document.getElementById("f-conf-wrap").style.display=(t&&t.precisaConferencia)?"block":"none";
   renderEmpMultiSelect();
@@ -3430,6 +3479,7 @@ async function saveTask(){
   const precisaConferencia=document.getElementById("f-precisa-conf").checked;
   const data={tit,det:document.getElementById("f-det").value.trim(),
     emp:[...modalSelectedEmps],
+    filiais:[...modalSelectedFiliais],
     prio:document.getElementById("f-prio").value,
     date:document.getElementById("f-data").value,
     hora:document.getElementById("f-hora").value||"",
