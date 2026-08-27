@@ -673,6 +673,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
+    <button class="tab" data-tab="processos">📚 Processos</button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
@@ -778,6 +779,31 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div id="degMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="degList"></div>
     </div>
+    <div class="view" id="view-processos">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <button class="fp on" data-procview="consulta">📖 Consulta</button>
+        <button class="fp" data-procview="execucoes">▶️ Execuções <span id="procExecBadge" class="tbadge" style="display:none;background:var(--accent)"></span></button>
+      </div>
+      <div id="procConsultaWrap">
+        <p style="font-size:.72rem;color:var(--text2);margin-bottom:12px">📚 Manual de processos do Departamento Pessoal — modelo padrão, válido para as 4 empresas atendidas (AMASP, Casa da Criança Feliz, CEDAP, Jardim das Princesas). <span class="admin-only-el" style="display:none">Só o Admin edita o conteúdo abaixo.</span></p>
+        <div id="procDefsList"></div>
+        <div class="sc" style="margin-top:18px">
+          <h3>📋 Anexo I — Eventos do eSocial</h3>
+          <div id="procAnexoEsocial" style="overflow-x:auto;margin-top:10px"></div>
+        </div>
+      </div>
+      <div id="procExecucoesWrap" style="display:none">
+        <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+          <span class="filter-label">Status</span>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+            <button class="fp on" data-procstatus="em_andamento">Em andamento</button>
+            <button class="fp" data-procstatus="concluido">Concluídos</button>
+            <button class="fp" data-procstatus="all">Todos</button>
+          </div>
+        </div>
+        <div id="procExecList"></div>
+      </div>
+    </div>
     <div class="view" id="view-notas">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <p style="font-size:.72rem;color:var(--text2)">📝 Suas anotações pessoais — só você vê e edita as suas.</p>
@@ -815,7 +841,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📦 Backup Completo</h3>
-          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Gera um arquivo com os dados do sistema, pra guardar como cópia de segurança fora do app. Inclui tarefas, concluídas, histórico completo, desligamentos, chat geral e conversas diretas de todos os colaboradores, grupos, modelos, membros, empresas e filiais. <strong>Não inclui</strong> o Quadro de Anotações (é privado de cada usuário).</p>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Gera um arquivo com os dados do sistema, pra guardar como cópia de segurança fora do app. Inclui tarefas, concluídas, histórico completo, desligamentos, execuções de processos, chat geral e conversas diretas de todos os colaboradores, grupos, modelos, membros, empresas e filiais. <strong>Não inclui</strong> o Quadro de Anotações (é privado de cada usuário).</p>
           <div class="fg full" style="margin-bottom:8px"><label>Período</label>
             <select id="backup-periodo" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;">
               <option value="all">📦 Backup geral (tudo, desde o início)</option>
@@ -1842,6 +1868,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
     btn.classList.add("active");
     document.getElementById("view-"+btn.dataset.tab).classList.add("active");
     if(btn.dataset.tab==="chat")renderChat();
+    if(btn.dataset.tab==="processos"){renderProcessos();renderProcessoExecucoes();}
   });
 });
 
@@ -2057,8 +2084,27 @@ function startListeners(){
     updateDegDeadlinePopup();
   });
   renderDegEmpFilters();
+
+  const processosDefRef=doc(db,"config","processos_dp");
+  getDoc(processosDefRef).then(snap=>{
+    if(!snap.exists())setDoc(processosDefRef,{list:DEF_PROCESSOS_DP,anexoEsocial:ANEXO_ESOCIAL_DP});
+  });
+  unsubProcessosDefs=onSnapshot(processosDefRef,snap=>{
+    if(snap.exists()&&snap.data().list?.length){
+      processoDefs=[...snap.data().list];
+      anexoEsocial=snap.data().anexoEsocial?.length?[...snap.data().anexoEsocial]:[...ANEXO_ESOCIAL_DP];
+    }else{
+      processoDefs=[...DEF_PROCESSOS_DP];
+      anexoEsocial=[...ANEXO_ESOCIAL_DP];
+    }
+    renderProcessos();
+  });
+  unsubProcessoExec=onSnapshot(collection(db,"processo_execucoes_dp"),snap=>{
+    processoExecucoes=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderProcessoExecucoes();
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -3733,6 +3779,376 @@ function openDegModal(id){
   document.getElementById("modalDegOv").classList.add("open");
 }
 function closeDegModal(){document.getElementById("modalDegOv").classList.remove("open");editDegId=null;}
+
+// ══════════════ ABA PROCESSOS (27/08/2026) ══════════════
+const DEF_PROCESSOS_DP=[
+  {key:"admissao",icone:"📥",titulo:"Admissão",
+   objetivo:"Formalizar a contratação do colaborador, garantindo documentação completa, registro correto nos sistemas (Dexion e eSocial) e comunicação ao cliente dentro do prazo legal.",
+   quando:"Sempre que houver uma nova contratação em qualquer uma das empresas atendidas, a partir do recebimento da documentação do colaborador.",
+   entradas:"Documentação do colaborador (sempre por e-mail); ficha de registro quando faltar informação.",
+   passos:[
+     "Receber a documentação do colaborador sempre por e-mail. Se faltar informação, enviar a ficha de registro para preenchimento.",
+     "Bater o checklist de documentos e verificar se não está faltando nada.",
+     "Conferir os documentos recebidos e esclarecer dúvidas com o responsável pela contratação.",
+     "Salvar todos os documentos na rede.",
+     "Incluir a admissão no Dexion e gerar o contrato de trabalho.",
+     "Conferir o contrato de trabalho gerado.",
+     "Enviar o evento de admissão ao eSocial (S2200), até 24h antes do início das atividades.",
+     "Enviar e-mail ao cliente informando início, prazo de experiência ou modalidade do contrato."
+   ],
+   pontosAtencao:"Checklist antes de lançar no sistema; prazo do S2200 é até o dia anterior ao início das atividades; comunicação com o cliente sempre por e-mail.",
+   saidas:"Contrato gerado e conferido; admissão no Dexion; S2200 transmitido; documentos salvos; e-mail ao cliente.",
+   baseLabel:"Data de início do colaborador",prazoOffsetDias:-1,prazoLabel:"Enviar o S2200 até o dia anterior ao início"},
+  {key:"atestados",icone:"🩺",titulo:"Atestados / Afastamentos",
+   objetivo:"Registrar corretamente atestados e afastamentos, avaliar se caracterizam afastamento previdenciário e acompanhar o colaborador até o retorno.",
+   quando:"Sempre que um atestado ou comunicação de afastamento for recebido.",
+   entradas:"Atestado/documento médico, sempre por e-mail.",
+   passos:[
+     "Receber a documentação sempre por e-mail.",
+     "Conferir os 4 requisitos obrigatórios: tempo de afastamento, identificação do médico (nome + CRM), assinatura, legibilidade.",
+     "Lançar na planilha de controle de atestados e no Dexion.",
+     "Verificar se o afastamento é superior a 15 dias (previdenciário) e orientar o cliente.",
+     "Somar atestados com mesmo CID (ou correlato) em até 60 dias anteriores para checar se caracteriza afastamento previdenciário.",
+     "Se superior a 15 dias, enviar a DUT.",
+     "Acompanhar o afastado e comunicar sobre o exame de retorno ao trabalho."
+   ],
+   pontosAtencao:"Atestado sem os 4 requisitos não é aceito; regra dos 60 dias/CID correlato define o encaminhamento ao INSS; evento eSocial S2230 até 15 dias da data do afastamento.",
+   saidas:"Atestado lançado; orientação ao cliente quando aplicável; DUT enviada; S2230 transmitido; acompanhamento do retorno registrado.",
+   baseLabel:"Data do afastamento",prazoOffsetDias:15,prazoLabel:"Enviar o S2230 até 15 dias do afastamento"},
+  {key:"rescisoes",icone:"🚪",titulo:"Rescisões / Homologações",
+   objetivo:"Conduzir o desligamento do colaborador, calcular a rescisão, homologar dentro do prazo legal e entregar a documentação ao cliente.",
+   quando:"Sempre que houver comunicação de desligamento.",
+   entradas:"Pedido de demissão, comunicado de dispensa ou solicitação de aviso prévio, sempre por e-mail.",
+   passos:[
+     "Etapa 1 (conforme o tipo) — Pedido de demissão: verificar concurso público (desconto do aviso), quebra de contrato, se estava afastada.",
+     "Etapa 1 — Término de contrato: atentar à entrega do aviso na data correta.",
+     "Etapa 1 — Aviso prévio (trabalhado/indenizado): conferência de estabilidade (tempo de casa, idade, data-base sindicato, recesso de janeiro/PEIs, CAT, férias/afastamento nos últimos 30 dias, licença-maternidade) — sempre por e-mail.",
+     "Etapa 1 — Outras modalidades: contatar a Coordenação.",
+     "Etapa 2 — Inserir no controle de desligamentos.",
+     "Etapa 2 — Solicitar informações para o TRCT e verificar eConsignado.",
+     "Etapa 2 — Lançar o TRCT e emitir extrato do FGTS.",
+     "Etapa 2 — Conferência e autorização de envio do TRCT.",
+     "Etapa 2 — Enviar processo de pagamento (agrupado em 1 PDF) e cobrar comprovante.",
+     "Etapa 2 — Homologar em até 10 dias da data oficial; escanear processo assinado; salvar e enviar ao cliente.",
+     "Etapa 2 — Não deixar documentação pendente (Seguro-Desemprego/assinaturas); comunicar formalmente não comparecimento."
+   ],
+   pontosAtencao:"Confirmar cada decisão por e-mail; seguir o checklist; homologação em até 10 dias; evento S2299 em até 10 dias do desligamento; processo final agrupado em 1 PDF.",
+   saidas:"Controle de desligamentos atualizado; TRCT lançado/autorizado; pagamento enviado e comprovante cobrado; homologação e TRCT assinado salvos/enviados; S2299 transmitido; pendências resolvidas/comunicadas.",
+   baseLabel:"Data do desligamento",prazoOffsetDias:10,prazoLabel:"Homologar e enviar o S2299 até 10 dias do desligamento",
+   linkTab:"deslig",linkLabel:"↪ Ver também a aba Desligamentos — já rastreia os 4 selos (Feito → Conferência Leo → Enviado → Homologado) e o prazo de homologação"},
+  {key:"folha",icone:"💰",titulo:"Folha de Pagamento",
+   objetivo:"Processar mensalmente a folha com as movimentações do período, conferir valores e distribuir ao cliente.",
+   quando:"Mensalmente, no calendário de fechamento de folha.",
+   entradas:"Planilha de apontamentos do cliente/Diretoras; movimentações de admissão, rescisão, atestados, promoções, transferências.",
+   passos:[
+     "Enviar a planilha de folha ao cliente.",
+     "Lançar transferências, mudanças de cargo e promoções.",
+     "Verificar se admissões, rescisões e atestados do período estão lançados e as informações das Diretoras consideradas.",
+     "Lançar o eConsignado.",
+     "Seguir o checklist de folha.",
+     "Conferência da folha.",
+     "Gerar relação líquida e arquivo bancário.",
+     "Enviar folhas, holerites, relação líquida, arquivo bancário e pendências de eConsignado.",
+     "Gerar boleto de Contribuição Assistencial e enviar ao cliente.",
+     "Elaborar relatório de alterações/correções e apontamentos para o mês seguinte; arquivar."
+   ],
+   pontosAtencao:"Depende dos Processos de Admissão/Atestados/Rescisões estarem em dia (passo 3 é crítico); checklist obrigatório; relatório mensal sempre arquivado.",
+   saidas:"Folha processada; holerites/relação líquida/arquivo bancário enviados; eConsignado lançado; boleto de Contribuição Assistencial enviado; relatório mensal arquivado.",
+   baseLabel:"Mês de referência (data de fechamento)",prazoOffsetDias:null,prazoLabel:null},
+  {key:"encargos",icone:"📑",titulo:"Encargos Trabalhistas",
+   objetivo:"Apurar, conferir e transmitir os encargos trabalhistas do período, garantindo aderência entre folha, relatórios do eSocial e planilha de encargos.",
+   quando:"Mensalmente, após o fechamento da Folha de Pagamento.",
+   entradas:"Planilha de folha fechada; relatórios S5001, S5002, S5003.",
+   passos:[
+     "Preencher a planilha de Encargos com base na folha fechada.",
+     "Enviar os eventos periódicos: S1010, S2200, S2205, S2206, S2210, S2230, S2299, S1200, S1210.",
+     "Conferir S5001, S5002, S5003 com a planilha de Encargos.",
+     "Identificar divergências e registrá-las na planilha.",
+     "Liberar a planilha e transmitir o S1299.",
+     "Enviar guias ao cliente e salvar nas pastas."
+   ],
+   pontosAtencao:"S1010 enviado antes de S2299/S1200/S1210; eventos periódicos até dia 15 do mês subsequente; divergências sempre documentadas.",
+   saidas:"Planilha de encargos preenchida/conferida; eventos transmitidos; S1299 transmitido; guias enviadas e salvas.",
+   baseLabel:"Mês de referência (fechamento da folha)",prazoOffsetDias:null,prazoLabel:"Eventos periódicos até o dia 15 do mês subsequente"}
+];
+const ANEXO_ESOCIAL_DP=[
+  {codigo:"S1010",funcao:"Tabela de Rúbricas",prazo:"Enviar antes dos eventos S2299/S1200/S1210"},
+  {codigo:"S2200",funcao:"Admissão",prazo:"Até o dia anterior ao início das atividades"},
+  {codigo:"S2205",funcao:"Alteração de Dados Cadastrais",prazo:"Até o dia 15 do mês subsequente"},
+  {codigo:"S2206",funcao:"Alteração Contratual",prazo:"Até o dia 15 do mês subsequente"},
+  {codigo:"S2210",funcao:"CAT (Acidente do Trabalho)",prazo:"Até o 1º dia útil seguinte à ocorrência"},
+  {codigo:"S2230",funcao:"Atestados/Afastamento Temporário",prazo:"Até 15 dias da data do afastamento"},
+  {codigo:"S2299",funcao:"Desligamento",prazo:"Até 10 dias a contar do desligamento"},
+  {codigo:"S1200",funcao:"Remuneração do Empregado",prazo:"Até o dia 15 do mês subsequente"},
+  {codigo:"S1210",funcao:"Rendimentos do Trabalho",prazo:"Até o dia 15 do mês subsequente"},
+  {codigo:"S1299",funcao:"Fechamento de Eventos Periódicos",prazo:"Até o dia 15 do mês subsequente"}
+];
+
+let processoDefs=[...DEF_PROCESSOS_DP];
+let anexoEsocial=[...ANEXO_ESOCIAL_DP];
+let processoExecucoes=[];
+let unsubProcessosDefs=null,unsubProcessoExec=null;
+let procViewMode="consulta",procStatusFilter="em_andamento";
+
+function procPrazoData(def,dataBase){
+  if(!def||def.prazoOffsetDias==null||!dataBase)return null;
+  return addDaysToDate(dataBase,def.prazoOffsetDias);
+}
+function procPrazoInfo(dataStr){
+  if(!dataStr)return null;
+  const hoje=today();
+  if(dataStr<hoje)return{cls:"overdue-badge",txt:"⚠️ Vencido "+fmtD(dataStr)};
+  if(dataStr===hoje)return{cls:"overdue-badge",txt:"⏰ Vence hoje"};
+  const dias=Math.round((new Date(dataStr+"T00:00:00")-new Date(hoje+"T00:00:00"))/86400000);
+  if(dias<=3)return{cls:"tag",txt:`⏳ Vence em ${dias} dia${dias!==1?"s":""}`};
+  return{cls:"tag",txt:"Vence "+fmtD(dataStr)};
+}
+
+function renderProcessos(){
+  const c=document.getElementById("procDefsList");if(!c)return;
+  c.innerHTML=processoDefs.map(def=>{
+    const collapsed=isSectionCollapsed("proc_"+def.key);
+    return`<div class="sc" style="margin-bottom:12px">
+      <div class="proc-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <h3 style="margin-bottom:0">${def.icone} ${esc(def.titulo)}</h3>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <button class="btn-cancel proc-iniciar" data-key="${def.key}" style="font-size:.7rem;padding:6px 10px">▶️ Iniciar</button>
+          <button class="btn-cancel admin-only-el proc-editar" data-key="${def.key}" style="display:none;font-size:.7rem;padding:6px 10px">✏️ Editar</button>
+          ${collapseToggleBtnHtml("proc_"+def.key)}
+        </div>
+      </div>
+      <div class="proc-body" style="${collapsed?"display:none;":""}margin-top:10px;font-size:.78rem;color:var(--text2);line-height:1.6">
+        <p><strong style="color:var(--text)">Objetivo:</strong> ${esc(def.objetivo)}</p>
+        <p><strong style="color:var(--text)">Quando executar:</strong> ${esc(def.quando)}</p>
+        <p><strong style="color:var(--text)">Entradas:</strong> ${esc(def.entradas)}</p>
+        <p style="margin-top:8px"><strong style="color:var(--text)">Passo a passo:</strong></p>
+        <ol style="margin:4px 0 8px 18px;padding:0">${(def.passos||[]).map(p=>`<li style="margin-bottom:3px">${esc(p)}</li>`).join("")}</ol>
+        <p><strong style="color:var(--text)">Pontos de atenção:</strong> ${esc(def.pontosAtencao)}</p>
+        <p><strong style="color:var(--text)">Saídas/Registros:</strong> ${esc(def.saidas)}</p>
+        ${def.prazoLabel?`<p style="margin-top:8px;color:var(--accent)">⏱ ${esc(def.prazoLabel)}</p>`:""}
+        ${def.linkLabel?`<p style="margin-top:6px"><a href="#" class="proc-goto-link" data-tab="${def.linkTab}" style="color:var(--accent)">${esc(def.linkLabel)}</a></p>`:""}
+      </div>
+    </div>`;
+  }).join("");
+  c.querySelectorAll(".proc-header").forEach(h=>wireCollapseToggle(h,h.nextElementSibling));
+  c.querySelectorAll(".proc-iniciar").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();openProcIniciarModal(b.dataset.key);}));
+  c.querySelectorAll(".proc-editar").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();openProcEditModal(b.dataset.key);}));
+  c.querySelectorAll(".proc-goto-link").forEach(a=>a.addEventListener("click",e=>{
+    e.preventDefault();
+    document.querySelector(`[data-tab="${a.dataset.tab}"]`)?.click();
+  }));
+
+  const anexoC=document.getElementById("procAnexoEsocial");
+  if(anexoC){
+    anexoC.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:.74rem">
+      <thead><tr style="text-align:left;color:var(--text2);border-bottom:1px solid var(--border)">
+        <th style="padding:6px 8px">ISO</th><th style="padding:6px 8px">Função</th><th style="padding:6px 8px">Prazo de envio</th>
+      </tr></thead>
+      <tbody>${anexoEsocial.map(a=>`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px;font-weight:700;white-space:nowrap">${esc(a.codigo)}</td>
+        <td style="padding:6px 8px">${esc(a.funcao)}</td>
+        <td style="padding:6px 8px;color:var(--text2)">${esc(a.prazo)}</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+  }
+}
+
+function openProcIniciarModal(key){
+  const def=processoDefs.find(d=>d.key===key);if(!def)return;
+  const vis=empresas.filter(e=>isAdmin||!e.adminOnly);
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:460px">
+    <h2>${def.icone} Iniciar: ${esc(def.titulo)}</h2>
+    <div class="fg full"><label>Referência (nome do colaborador ou identificação)</label><input type="text" id="proc-ref" placeholder="Ex: Maria da Silva"></div>
+    <div class="fg-grid">
+      <div class="fg"><label>Empresa</label><select id="proc-emp"></select></div>
+      <div class="fg"><label>Filial (opcional)</label><select id="proc-filial"></select></div>
+    </div>
+    <div class="fg full"><label>${esc(def.baseLabel||"Data de referência")}</label><input type="date" id="proc-database"></div>
+    ${def.prazoLabel?`<p style="font-size:.68rem;color:var(--text2);margin-top:4px">⏱ ${esc(def.prazoLabel)}</p>`:""}
+    <div class="fg full" style="margin-top:8px"><label>Observação (opcional)</label><textarea id="proc-obs" rows="2"></textarea></div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseProcIniciar">Cancelar</button>
+      <button class="btn-save-m" id="btnSaveProcIniciar">▶️ Iniciar processo</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const empSel=ov.querySelector("#proc-emp");
+  empSel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  function populateFilial(empId){
+    const filSel=ov.querySelector("#proc-filial");
+    const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+    filSel.innerHTML='<option value="">— Nenhuma —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+  }
+  populateFilial(empSel.value);
+  empSel.addEventListener("change",()=>populateFilial(empSel.value));
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCloseProcIniciar").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnSaveProcIniciar").addEventListener("click",async()=>{
+    const referencia=ov.querySelector("#proc-ref").value.trim();
+    if(!referencia){alert("Preencha a referência (ex: nome do colaborador).");return;}
+    const dataBase=ov.querySelector("#proc-database").value;
+    const data={
+      processoKey:def.key,
+      referencia,
+      emp:empSel.value,
+      filial:ov.querySelector("#proc-filial").value,
+      dataBase:dataBase||null,
+      checklist:(def.passos||[]).map(p=>({texto:p,done:false})),
+      status:"em_andamento",
+      observacao:ov.querySelector("#proc-obs").value.trim(),
+      createdBy:user.uid,createdAt:serverTimestamp()
+    };
+    try{
+      await addDoc(collection(db,"processo_execucoes_dp"),data);
+      ov.remove();
+      showToast("Processo iniciado! Acompanhe em Processos → Execuções.","success");
+    }catch(e){alert("Erro: "+translateErr(e));}
+  });
+}
+
+function openProcEditModal(key){
+  if(!isAdmin)return;
+  const def=processoDefs.find(d=>d.key===key);if(!def)return;
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:560px;max-height:85vh;overflow-y:auto">
+    <h2>✏️ Editar: ${def.icone} ${esc(def.titulo)}</h2>
+    <div class="fg full"><label>Título</label><input type="text" id="pe-titulo" value="${esc(def.titulo)}"></div>
+    <div class="fg full"><label>Objetivo</label><textarea id="pe-objetivo" rows="2">${esc(def.objetivo)}</textarea></div>
+    <div class="fg full"><label>Quando executar</label><textarea id="pe-quando" rows="2">${esc(def.quando)}</textarea></div>
+    <div class="fg full"><label>Entradas</label><textarea id="pe-entradas" rows="2">${esc(def.entradas)}</textarea></div>
+    <div class="fg full"><label>Passo a passo (um por linha)</label><textarea id="pe-passos" rows="8">${esc((def.passos||[]).join("\n"))}</textarea></div>
+    <div class="fg full"><label>Pontos de atenção</label><textarea id="pe-pontos" rows="2">${esc(def.pontosAtencao)}</textarea></div>
+    <div class="fg full"><label>Saídas/Registros</label><textarea id="pe-saidas" rows="2">${esc(def.saidas)}</textarea></div>
+    <div class="fg full"><label>Rótulo do prazo (opcional, aparece na consulta)</label><input type="text" id="pe-prazolabel" value="${esc(def.prazoLabel||"")}"></div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseProcEdit">Cancelar</button>
+      <button class="btn-save-m" id="btnSaveProcEdit">💾 Salvar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCloseProcEdit").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnSaveProcEdit").addEventListener("click",async()=>{
+    const updated=processoDefs.map(d=>d.key!==key?d:{
+      ...d,
+      titulo:ov.querySelector("#pe-titulo").value.trim()||d.titulo,
+      objetivo:ov.querySelector("#pe-objetivo").value.trim(),
+      quando:ov.querySelector("#pe-quando").value.trim(),
+      entradas:ov.querySelector("#pe-entradas").value.trim(),
+      passos:ov.querySelector("#pe-passos").value.split("\n").map(s=>s.trim()).filter(Boolean),
+      pontosAtencao:ov.querySelector("#pe-pontos").value.trim(),
+      saidas:ov.querySelector("#pe-saidas").value.trim(),
+      prazoLabel:ov.querySelector("#pe-prazolabel").value.trim()||null
+    });
+    try{
+      await setDoc(doc(db,"config","processos_dp"),{list:updated,anexoEsocial},{merge:true});
+      ov.remove();
+      showToast("Processo atualizado!","success");
+    }catch(e){alert("Erro: "+translateErr(e));}
+  });
+}
+
+function renderProcessoExecucoes(){
+  const c=document.getElementById("procExecList");if(!c)return;
+  let list=processoExecucoes.filter(e=>procStatusFilter==="all"||e.status===procStatusFilter);
+  list=list.sort((a,b)=>{
+    const da=procPrazoData(processoDefs.find(d=>d.key===a.processoKey),a.dataBase);
+    const dbb=procPrazoData(processoDefs.find(d=>d.key===b.processoKey),b.dataBase);
+    if(da&&dbb)return da<dbb?-1:da>dbb?1:0;
+    if(da)return -1;if(dbb)return 1;
+    return(tsToMs(b.createdAt)||0)-(tsToMs(a.createdAt)||0);
+  });
+  const emAndamentoCount=processoExecucoes.filter(e=>e.status==="em_andamento").length;
+  const badge=document.getElementById("procExecBadge");
+  if(badge){
+    if(emAndamentoCount){badge.style.display="";badge.textContent=emAndamentoCount;}
+    else badge.style.display="none";
+  }
+  if(!list.length){c.innerHTML='<div class="empty">Nenhuma execução '+(procStatusFilter==="em_andamento"?"em andamento":procStatusFilter==="concluido"?"concluída":"")+'.</div>';return;}
+  c.innerHTML=list.map(execItem=>{
+    const def=processoDefs.find(d=>d.key===execItem.processoKey)||{titulo:execItem.processoKey,icone:"📄"};
+    const prazoData=procPrazoData(def,execItem.dataBase);
+    const prazoInfo=execItem.status==="em_andamento"?procPrazoInfo(prazoData):null;
+    const emp=getEmp(execItem.emp);
+    const filObj=filiais.find(f=>f.id===execItem.filial);
+    const doneCount=(execItem.checklist||[]).filter(i=>i.done).length;
+    const totalCount=(execItem.checklist||[]).length;
+    const canManage=isAdmin||execItem.createdBy===user?.uid;
+    return`<div class="sc" style="margin-bottom:12px" data-execid="${execItem.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div>
+          <h3 style="margin-bottom:3px">${def.icone} ${esc(execItem.referencia)}</h3>
+          <div style="font-size:.7rem;color:var(--text2)">${esc(def.titulo)} · ${esc(emp.label)}${filObj?" · "+esc(filObj.label):""} · ${doneCount}/${totalCount} passos</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${prazoInfo?`<span class="tag ${prazoInfo.cls}">${prazoInfo.txt}</span>`:""}
+          ${execItem.status==="concluido"?`<span class="tag" style="background:rgba(76,175,125,.16);color:#5fdb9c">✅ Concluído</span>`:""}
+        </div>
+      </div>
+      <ul class="proc-checklist" style="list-style:none;margin:10px 0 0;padding:0;font-size:.76rem;color:var(--text2)">
+        ${(execItem.checklist||[]).map((item,i)=>`<li style="display:flex;gap:8px;align-items:flex-start;margin-bottom:5px">
+          <input type="checkbox" class="proc-check-item" data-idx="${i}" ${item.done?"checked":""} ${canManage?"":"disabled"} style="margin-top:2px;flex-shrink:0">
+          <span style="${item.done?"text-decoration:line-through;color:var(--text3)":""}">${esc(item.texto)}</span>
+        </li>`).join("")}
+      </ul>
+      ${execItem.observacao?`<p style="font-size:.72rem;color:var(--text2);margin-top:8px">📝 ${esc(execItem.observacao)}</p>`:""}
+      ${canManage?`<div class="mf-row" style="margin-top:10px">
+        ${execItem.status==="em_andamento"?`<button class="btn-save-m proc-concluir" style="font-size:.72rem">✅ Marcar como concluído</button>`:`<button class="btn-cancel proc-reabrir" style="font-size:.72rem">↩ Reabrir</button>`}
+        <button class="btn-cancel proc-excluir" style="font-size:.72rem;color:var(--urg)">🗑 Excluir</button>
+      </div>`:""}
+    </div>`;
+  }).join("");
+
+  c.querySelectorAll(".proc-check-item").forEach(chk=>{
+    chk.addEventListener("change",async()=>{
+      const wrap=chk.closest("[data-execid]");
+      const execId=wrap.dataset.execid;
+      const execItem=processoExecucoes.find(e=>e.id===execId);if(!execItem)return;
+      const idx=Number(chk.dataset.idx);
+      const newChecklist=(execItem.checklist||[]).map((it,i)=>i===idx?{...it,done:chk.checked}:it);
+      try{await updateDoc(doc(db,"processo_execucoes_dp",execId),{checklist:newChecklist});}
+      catch(e){alert("Erro: "+translateErr(e));chk.checked=!chk.checked;}
+    });
+  });
+  c.querySelectorAll(".proc-concluir").forEach(b=>b.addEventListener("click",async()=>{
+    const execId=b.closest("[data-execid]").dataset.execid;
+    try{await updateDoc(doc(db,"processo_execucoes_dp",execId),{status:"concluido",concludedAt:serverTimestamp()});}
+    catch(e){alert("Erro: "+translateErr(e));}
+  }));
+  c.querySelectorAll(".proc-reabrir").forEach(b=>b.addEventListener("click",async()=>{
+    const execId=b.closest("[data-execid]").dataset.execid;
+    try{await updateDoc(doc(db,"processo_execucoes_dp",execId),{status:"em_andamento",concludedAt:null});}
+    catch(e){alert("Erro: "+translateErr(e));}
+  }));
+  c.querySelectorAll(".proc-excluir").forEach(b=>b.addEventListener("click",async()=>{
+    const execId=b.closest("[data-execid]").dataset.execid;
+    if(!confirm("Excluir esta execução de processo? Isso não pode ser desfeito."))return;
+    try{await deleteDoc(doc(db,"processo_execucoes_dp",execId));}
+    catch(e){alert("Erro: "+translateErr(e));}
+  }));
+}
+
+document.querySelectorAll('[data-procview]').forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll('[data-procview]').forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    procViewMode=btn.dataset.procview;
+    document.getElementById("procConsultaWrap").style.display=procViewMode==="consulta"?"":"none";
+    document.getElementById("procExecucoesWrap").style.display=procViewMode==="execucoes"?"":"none";
+    if(procViewMode==="execucoes")renderProcessoExecucoes();
+  });
+});
+document.querySelectorAll('[data-procstatus]').forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll('[data-procstatus]').forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    procStatusFilter=btn.dataset.procstatus;
+    renderProcessoExecucoes();
+  });
+});
 document.getElementById("btnNewDeslig")?.addEventListener("click",()=>openDegModal());
 document.getElementById("btnCancelDegModal")?.addEventListener("click",closeDegModal);
 document.getElementById("modalDegOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closeDegModal();});
@@ -4387,6 +4803,17 @@ async function collectBackupData(periodo){
   push("Membros",members.map(m=>({Nome:m.name,Email:m.email,Cargo:m.role||"",Ordem:m.order??""})));
   push("Empresas",empresas.map(e=>({Nome:e.label,Cor:e.color,AdminOnly:e.adminOnly?"SIM":"NÃO",Ordem:e.order??""})));
   push("Filiais",filiais.map(f=>({Empresa:getEmp(f.empId).label,Filial:f.label,Ordem:f.order??""})));
+
+  push("Processos - Execucoes",processoExecucoes.filter(x=>inPeriod(x.createdAt,cutoffMs)).map(x=>{
+    const def=processoDefs.find(d=>d.key===x.processoKey)||{titulo:x.processoKey};
+    const emp=getEmp(x.emp);
+    const filObj=filiais.find(f=>f.id===x.filial);
+    const doneCount=(x.checklist||[]).filter(i=>i.done).length;
+    return{Processo:def.titulo,Referencia:x.referencia,Empresa:emp.label,Filial:filObj?filObj.label:"",
+      DataBase:x.dataBase?fmtD(x.dataBase):"",Status:x.status==="concluido"?"Concluído":"Em andamento",
+      Passos:`${doneCount}/${(x.checklist||[]).length}`,Observacao:x.observacao||"",
+      CriadoPor:members.find(m=>m.id===x.createdBy)?.name||"",CriadoEm:fmtDT(x.createdAt)};
+  }));
 
   try{
     const chatSnap=await getDocs(collection(db,"chat"));
