@@ -613,6 +613,52 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
+  <!-- MODAL PENDÊNCIA (DP) -->
+  <div class="modal-ov" id="modalPendOv">
+    <div class="modal">
+      <h2 id="modalPendTitle">Nova Pendência</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>DRE *</label>
+          <select id="pend-dre"></select>
+        </div>
+        <div class="fg"><label>Responsável</label>
+          <select id="pend-responsavel"><option value="">— Em aberto —</option></select>
+        </div>
+        <div class="fg"><label>Instituição *</label>
+          <select id="pend-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="pend-filial"><option value="">— Em aberto —</option></select>
+        </div>
+        <div class="fg"><label>Trimestre *</label>
+          <select id="pend-trimestre">
+            <option value="1">1° Trimestre</option>
+            <option value="2">2° Trimestre</option>
+            <option value="3">3° Trimestre</option>
+            <option value="4">4° Trimestre</option>
+          </select>
+        </div>
+        <div class="fg"><label>Ano *</label>
+          <select id="pend-ano"></select>
+        </div>
+        <div class="fg"><label>Recebimento</label><input type="date" id="pend-recebimento"></div>
+        <div class="fg"><label>Entrega</label><input type="date" id="pend-entrega"></div>
+        <div class="fg full"><label>Descrição da Pendência *</label>
+          <select id="pend-descricao"><option value="">— Selecione ou digite abaixo —</option></select>
+          <input type="text" id="pend-descricao-novo" placeholder="Ou digite uma descrição nova (fica salva pra reutilizar depois)" style="margin-top:6px;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:6px 9px;width:100%;box-sizing:border-box;">
+        </div>
+        <div class="fg full"><label>Observação</label><input type="text" id="pend-observacao" placeholder="Opcional"></div>
+        <div class="fg"><label>Status</label>
+          <select id="pend-status"></select>
+        </div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelPendModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSavePend">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOCUS -->
   <div class="focus-overlay" id="focusOv">
     <div class="focus-hd">
@@ -673,6 +719,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
+    <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="processos">📚 Processos</button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
@@ -779,6 +826,46 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div id="degMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="degList"></div>
     </div>
+    <div class="view" id="view-pendencias">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="pendEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Status</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <button class="fp on" data-pendstatus="all">Todos</button>
+          <button class="fp" data-pendstatus="nao_iniciado">Não iniciado</button>
+          <button class="fp" data-pendstatus="em_processo">Em processo</button>
+          <button class="fp" data-pendstatus="aguardando_cliente">Aguardando cliente</button>
+        </div>
+        <button id="btnExportPend" class="btn-cancel" style="margin-left:auto">📤 Exportar Excel</button>
+        <button id="btnImportPendTrigger" class="btn-cancel">📥 Importar Excel</button>
+        <input type="file" id="importPendFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnNewPend" class="btn-save-m">＋ Nova Pendência</button>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Período (Entrega)</span>
+        <select id="pendPeriodoSel" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:6px 10px;">
+          <option value="all">Todo período</option>
+          <option value="atrasado">Vencidos</option>
+          <option value="0">Hoje</option>
+          <option value="3">Próximos 3 dias</option>
+          <option value="7">Próximos 7 dias</option>
+          <option value="30">Próximos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <div id="pendPeriodoCustomWrap" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="pendPeriodoDe" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+          <span style="color:var(--text2);font-size:.72rem">até</span>
+          <input type="date" id="pendPeriodoAte" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+        </div>
+      </div>
+      <div id="pendSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
+      <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
+      <div id="pendMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
+      <div id="pendList"></div>
+    </div>
     <div class="view" id="view-processos">
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
         <button class="fp on" data-procview="consulta">📖 Consulta</button>
@@ -830,9 +917,14 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>🏬 Gerenciar Filiais/Unidades</h3>
-          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Cadastre as filiais de cada empresa (usadas nos Desligamentos).</p>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Cadastre as filiais de cada empresa (usadas em Desligamentos, Pendências e Tarefas).</p>
           <select id="filialEmpSel" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;margin-bottom:10px;"></select>
           <div id="filiaisConfig"></div>
+        </div>
+        <div class="sc admin-only-el" style="display:none">
+          <h3>🗂️ Descrições de Pendência salvas</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Toda vez que alguém digita uma descrição nova ao criar uma Pendência, ela fica salva aqui pra reaproveitar depois. Remova as que não fizerem mais sentido.</p>
+          <div id="pendDescricoesDpConfig"></div>
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📧 E-mails de Notificação de Tarefas</h3>
@@ -892,6 +984,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
             <div class="color-row"><span class="cl">Fundo</span><input class="cinp" type="color" value="#080910" data-var="--bg"></div>
             <div class="color-row"><span class="cl">Balão "Lista"</span><input class="cinp" type="color" value="#c8a96e" data-var="--lista-badge-color"></div>
             <div class="color-row"><span class="cl">Balão "Desligamentos"</span><input class="cinp" type="color" value="#e05c5c" data-var="--deg-badge-color"></div>
+            <div class="color-row"><span class="cl">Balão "Pendências"</span><input class="cinp" type="color" value="#e05c5c" data-var="--pend-badge-color"></div>
             <div class="color-row"><span class="cl">Balão "Acompanhamento"</span><input class="cinp" type="color" value="#7c6fcd" data-var="--watch-badge-color"></div>
             <div class="color-row"><span class="cl">Fundo do cabeçalho</span><input class="cinp" type="color" value="#1a1f36" data-var="--header-bg"></div>
             <div class="color-row"><span class="cl">Fundo da barra de filtros</span><input class="cinp" type="color" value="#0f1018" data-var="--filters-bg"></div>
@@ -2085,6 +2178,16 @@ function startListeners(){
   });
   renderDegEmpFilters();
 
+  unsubPendDescricoes=onSnapshot(collection(db,"pend_descricoes_dp"),snap=>{
+    pendDescricoes=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.texto||"").localeCompare(b.texto||"","pt-BR"));
+    renderPendDescricoesConfig();
+  });
+  unsubPendencias=onSnapshot(collection(db,"pendencias_dp"),snap=>{
+    pendencias=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderPendencias();
+  });
+  renderPendEmpFilters();
+
   const processosDefRef=doc(db,"config","processos_dp");
   getDoc(processosDefRef).then(snap=>{
     if(!snap.exists())setDoc(processosDefRef,{list:DEF_PROCESSOS_DP,anexoEsocial:ANEXO_ESOCIAL_DP});
@@ -2104,7 +2207,7 @@ function startListeners(){
     renderProcessoExecucoes();
   });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -3704,6 +3807,536 @@ async function moveFilial(id,dir,list){
   }catch(e){alert("Erro ao reordenar: "+translateErr(e));}
 }
 
+// ══════════════ PENDÊNCIAS (DP) — 28/08/2026 ══════════════
+// Porte da aba "Pendências" da Prestação de Contas para o Departamento Pessoal, com 3 ajustes pedidos por Leonardo:
+// 1) Descrição: em vez de lista fixa, é texto livre com opção de salvar para reutilizar (lista crescente, igual ao antigo padrão de Técnico da PC).
+// 2) Empresas: usa as empresas do próprio DP (empresas), que já não incluem Juventude/filiais — nenhum filtro extra necessário.
+// 3) Responsável: select com os membros do DP (sortedMembers()), no lugar do "Técnico Responsável" em texto livre da PC.
+let pendencias=[], unsubPendencias=null;
+let pendDescricoes=[], unsubPendDescricoes=null;
+let pendEmpFilter="all", pendStatusFilter="all", pendPeriodFilter="all", pendMiniDashExpanded=false, editPendId=null;
+
+const DRE_OPTIONS=["Butantã","Guaianases","Ipiranga","Itaquera","Pirituba"];
+const PEND_STATUS_OPTIONS=[
+  {v:"nao_iniciado",l:"Não iniciado"},{v:"em_processo",l:"Em processo"},{v:"aguardando_cliente",l:"Aguardando o cliente"}
+];
+function pendAnosDisponiveis(){ // janela móvel: ano atual + 4 anos anteriores, mais recente primeiro
+  const anoAtual=new Date().getFullYear();
+  return[anoAtual,anoAtual-1,anoAtual-2,anoAtual-3,anoAtual-4];
+}
+function pendTrimestreLabel(tri){return tri?`${tri}° Tri`:"";}
+
+// --- Descrições salvas (qualquer membro pode adicionar ao criar uma pendência; só o Admin remove) ---
+function renderPendDescricoesConfig(){
+  const c=document.getElementById("pendDescricoesDpConfig");if(!c||!isAdmin)return;
+  c.innerHTML=pendDescricoes.map(d=>`
+    <div class="sc-emp-item">
+      <span class="sc-emp-input">${esc(d.texto)}</span>
+      <button data-delpenddesc="${d.id}" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.2);border-radius:5px;color:var(--urg);cursor:pointer;font-size:.7rem;padding:3px 7px;">✕</button>
+    </div>`).join("")||'<div style="font-size:.72rem;color:var(--text3)">Nenhuma descrição salva ainda.</div>';
+  c.querySelectorAll("[data-delpenddesc]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!confirm("Remover esta descrição da lista?"))return;
+      try{await deleteDoc(doc(db,"pend_descricoes_dp",btn.dataset.delpenddesc));}catch(e){alert("Erro: "+translateErr(e));}
+    });
+  });
+}
+async function addPendDescricao(texto){
+  const existing=pendDescricoes.find(d=>d.texto.trim().toUpperCase()===texto.trim().toUpperCase());
+  if(existing)return existing.texto;
+  try{
+    await addDoc(collection(db,"pend_descricoes_dp"),{texto:texto.trim(),addedBy:user.uid,addedAt:serverTimestamp()});
+  }catch(e){alert("Erro ao salvar descrição: "+translateErr(e));}
+  return texto.trim();
+}
+
+// --- Selects do modal de Pendência ---
+function populatePendStaticSelects(){
+  const dreSel=document.getElementById("pend-dre");
+  if(dreSel&&!dreSel.dataset.filled){
+    dreSel.innerHTML=DRE_OPTIONS.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+    dreSel.dataset.filled="1";
+  }
+  const statusSel=document.getElementById("pend-status");
+  if(statusSel&&!statusSel.dataset.filled){
+    statusSel.innerHTML=PEND_STATUS_OPTIONS.map(s=>`<option value="${s.v}">${esc(s.l)}</option>`).join("");
+    statusSel.dataset.filled="1";
+  }
+  const anoSel=document.getElementById("pend-ano");
+  if(anoSel){
+    const cur=anoSel.value;
+    anoSel.innerHTML=pendAnosDisponiveis().map(a=>`<option value="${a}">${a}</option>`).join("");
+    if(cur&&[...anoSel.options].some(o=>o.value===cur))anoSel.value=cur;
+  }
+}
+function populatePendDescricaoSel(){
+  const sel=document.getElementById("pend-descricao");if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Selecione ou digite abaixo —</option>'+pendDescricoes.map(d=>`<option value="${esc(d.texto)}">${esc(d.texto)}</option>`).join("");
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function populatePendResponsavelSel(){
+  const sel=document.getElementById("pend-responsavel");if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— Em aberto —</option>'+sortedMembers().map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("");
+  if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;
+}
+function populatePendEmpSel(){
+  const sel=document.getElementById("pend-emp");if(!sel)return;
+  const cur=sel.value;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  sel.innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  if(cur&&vis.find(e=>e.id===cur))sel.value=cur;
+}
+function populatePendFilialSel(empId){
+  const sel=document.getElementById("pend-filial");if(!sel)return;
+  const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  sel.innerHTML='<option value="">— Em aberto —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+document.getElementById("pend-emp")?.addEventListener("change",function(){populatePendFilialSel(this.value);});
+
+// --- Modal: abrir / fechar / salvar / excluir ---
+function openPendModal(id){
+  editPendId=id||null;
+  const p=id?pendencias.find(x=>x.id===id):null;
+  document.getElementById("modalPendTitle").textContent=p?"Editar Pendência":"Nova Pendência";
+  populatePendStaticSelects();
+  populatePendDescricaoSel();
+  populatePendResponsavelSel();
+  populatePendEmpSel();
+  document.getElementById("pend-dre").value=p?p.dre||DRE_OPTIONS[0]:DRE_OPTIONS[0];
+  document.getElementById("pend-responsavel").value=p?p.responsavel||"":"";
+  document.getElementById("pend-emp").value=p?p.emp:(document.getElementById("pend-emp").options[0]?.value||"");
+  populatePendFilialSel(document.getElementById("pend-emp").value);
+  document.getElementById("pend-filial").value=p?p.filial||"":"";
+  document.getElementById("pend-trimestre").value=p?p.trimestre||"1":"1";
+  document.getElementById("pend-ano").value=p?String(p.ano||new Date().getFullYear()):String(new Date().getFullYear());
+  document.getElementById("pend-recebimento").value=p?p.recebimento||"":"";
+  document.getElementById("pend-entrega").value=p?p.entrega||"":"";
+  document.getElementById("pend-descricao").value=p?p.descricao||"":"";
+  document.getElementById("pend-descricao-novo").value="";
+  document.getElementById("pend-observacao").value=p?p.observacao||"":"";
+  document.getElementById("pend-status").value=p?p.status||"nao_iniciado":"nao_iniciado";
+  document.getElementById("modalPendOv").classList.add("open");
+}
+function closePendModal(){document.getElementById("modalPendOv").classList.remove("open");editPendId=null;}
+document.getElementById("btnNewPend")?.addEventListener("click",()=>openPendModal());
+document.getElementById("btnCancelPendModal")?.addEventListener("click",closePendModal);
+document.getElementById("modalPendOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closePendModal();});
+
+document.getElementById("btnSavePend")?.addEventListener("click",async()=>{
+  const emp=document.getElementById("pend-emp").value;
+  if(!emp){alert("Selecione a instituição.");return;}
+  let descricao=document.getElementById("pend-descricao-novo").value.trim();
+  if(descricao){descricao=await addPendDescricao(descricao);}
+  else descricao=document.getElementById("pend-descricao").value;
+  if(!descricao){alert("Descreva a pendência ou selecione uma descrição salva.");return;}
+  const data={
+    dre:document.getElementById("pend-dre").value,
+    responsavel:document.getElementById("pend-responsavel").value,
+    emp,
+    filial:document.getElementById("pend-filial").value,
+    trimestre:document.getElementById("pend-trimestre").value,
+    ano:Number(document.getElementById("pend-ano").value),
+    recebimento:document.getElementById("pend-recebimento").value,
+    entrega:document.getElementById("pend-entrega").value,
+    descricao,
+    observacao:document.getElementById("pend-observacao").value.trim(),
+    status:document.getElementById("pend-status").value
+  };
+  try{
+    if(editPendId){await updateDoc(doc(db,"pendencias_dp",editPendId),data);}
+    else{data.createdAt=serverTimestamp();data.createdBy=user.uid;await addDoc(collection(db,"pendencias_dp"),data);}
+    closePendModal();
+  }catch(e){alert("Erro: "+translateErr(e));}
+});
+
+async function deletePend(id){
+  if(!confirm("Excluir esta pendência?"))return;
+  try{await deleteDoc(doc(db,"pendencias_dp",id));}catch(e){alert("Erro: "+translateErr(e));}
+}
+
+// --- Filtros ---
+function renderPendEmpFilters(){
+  const c=document.getElementById("pendEmpFilters");if(!c)return;
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  c.innerHTML=`<button class="fp${pendEmpFilter==="all"?" on":""}" data-pendemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${pendEmpFilter===e.id?" on":""}" data-pendemp="${e.id}" style="${pendEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll("[data-pendemp]").forEach(btn=>{
+    btn.addEventListener("click",()=>{pendEmpFilter=btn.dataset.pendemp;renderPendEmpFilters();renderPendencias();});
+  });
+}
+document.querySelectorAll("[data-pendstatus]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    pendStatusFilter=btn.dataset.pendstatus;
+    document.querySelectorAll("[data-pendstatus]").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    renderPendencias();
+  });
+});
+document.getElementById("pendPeriodoSel")?.addEventListener("change",function(){
+  pendPeriodFilter=this.value;
+  const wrap=document.getElementById("pendPeriodoCustomWrap");
+  if(wrap)wrap.style.display=this.value==="custom"?"flex":"none";
+  renderPendencias();
+});
+document.getElementById("pendPeriodoDe")?.addEventListener("change",()=>renderPendencias());
+document.getElementById("pendPeriodoAte")?.addEventListener("change",()=>renderPendencias());
+function filterPendByPeriodo(arr){
+  if(pendPeriodFilter==="all")return arr;
+  const hoje=today();
+  if(pendPeriodFilter==="atrasado")return arr.filter(p=>p.entrega&&p.entrega<hoje);
+  if(pendPeriodFilter==="custom"){
+    const de=document.getElementById("pendPeriodoDe")?.value||"";
+    const ate=document.getElementById("pendPeriodoAte")?.value||"";
+    return arr.filter(p=>{
+      if(!p.entrega)return false;
+      if(de&&p.entrega<de)return false;
+      if(ate&&p.entrega>ate)return false;
+      return true;
+    });
+  }
+  const limite=today(Number(pendPeriodFilter));
+  return arr.filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=limite);
+}
+
+// --- Listagem ---
+function renderPendencias(){
+  const list=document.getElementById("pendList");if(!list)return;
+  let visP=isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly);
+  let visPForDash=visP;
+  if(pendEmpFilter!=="all"){visP=visP.filter(p=>p.emp===pendEmpFilter);visPForDash=visPForDash.filter(p=>p.emp===pendEmpFilter);}
+  visP=filterPendByPeriodo(visP);visPForDash=filterPendByPeriodo(visPForDash);
+  if(pendStatusFilter!=="all")visP=visP.filter(p=>p.status===pendStatusFilter);
+
+  const summary=document.getElementById("pendSummary");
+  const totalPend=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).length;
+  const hoje=today();
+  const vencendoSemana=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=today(7)).length;
+  if(summary)summary.textContent=`🗂️ ${totalPend} pendência${totalPend!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
+
+  const badge=document.getElementById("pendTabBadge");
+  if(badge){
+    if(visP.length>0){badge.style.display="inline-flex";badge.textContent=visP.length;}
+    else badge.style.display="none";
+  }
+
+  renderPendMiniDash(visPForDash);
+
+  if(!visP.length){list.innerHTML='<div class="empty">Nenhuma pendência encontrada com esses filtros.</div>';return;}
+
+  const byEmp={};
+  visP.forEach(p=>{(byEmp[p.emp]||(byEmp[p.emp]=[])).push(p);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empKey="pend:emp:"+empId;
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
+    list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
+
+    const byFilial={};
+    byEmp[empId].forEach(p=>{
+      const filObj=filiais.find(f=>f.id===p.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(p);
+    });
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="pend:filial:"+empId+":"+filKey;
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
+      byFilial[filKey].items.sort((a,b)=>(a.entrega||"").localeCompare(b.entrega||"")).forEach(p=>ct.appendChild(buildPendCard(p)));
+    });
+  });
+}
+
+function renderPendMiniDash(visP){
+  const c=document.getElementById("pendMiniDash");if(!c)return;
+  const naoIniciado=visP.filter(p=>p.status==="nao_iniciado").length;
+  const emProcesso=visP.filter(p=>p.status==="em_processo").length;
+  const aguardando=visP.filter(p=>p.status==="aguardando_cliente").length;
+  const porDescricao={};
+  visP.forEach(p=>{const l=p.descricao||"—";porDescricao[l]=(porDescricao[l]||0)+1;});
+  const descOrdenadas=Object.entries(porDescricao).sort((a,b)=>b[1]-a[1]);
+  const descMaisComum=descOrdenadas[0];
+  const podeExpandir=descOrdenadas.length>1;
+  c.innerHTML=[
+    {icon:"🆕",val:naoIniciado,lbl:"Não iniciado"},
+    {icon:"⚙️",val:emProcesso,lbl:"Em processo"},
+    {icon:"⏳",val:aguardando,lbl:"Aguardando cliente"},
+  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:1.7rem">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("")
+  +`<div class="kpi" id="pendDescKpi" style="${podeExpandir?"cursor:pointer":""}">
+      <div style="font-size:1rem;margin-bottom:5px">📊</div>
+      <div class="kpi-val" style="font-size:${descMaisComum&&descMaisComum[0].length>10?"0.85rem":"1.4rem"}">${esc(descMaisComum?descMaisComum[0]:"—")}</div>
+      <div class="kpi-lbl">${esc("Pendência mais comum"+(descMaisComum?` (${descMaisComum[1]})`:"")+(podeExpandir?(pendMiniDashExpanded?" · toque p/ ocultar":" · toque p/ ver todas"):""))}</div>
+    </div>`
+  +(pendMiniDashExpanded&&descOrdenadas.length?`<div class="kpi" style="grid-column:1/-1;text-align:left;cursor:default">
+      <div style="font-size:.7rem;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📊 Todos os tipos de pendência</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${descOrdenadas.map(([label,count])=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text)"><span>${esc(label)}</span><span style="font-weight:700;color:var(--accent)">${count}</span></div>`).join("")}
+      </div>
+    </div>`:"");
+  if(podeExpandir)document.getElementById("pendDescKpi")?.addEventListener("click",()=>{
+    pendMiniDashExpanded=!pendMiniDashExpanded;
+    renderPendMiniDash(visP);
+  });
+}
+
+function buildPendCard(p){
+  const canEdit=isAdmin||p.createdBy===user?.uid;
+  const overdue=!!(p.entrega&&p.entrega<today());
+  const statusInfo=PEND_STATUS_OPTIONS.find(s=>s.v===p.status)||PEND_STATUS_OPTIONS[0];
+  const statusColor=p.status==="aguardando_cliente"?"rgba(224,140,58,.16)":p.status==="em_processo"?"rgba(124,111,205,.16)":"rgba(224,92,92,.16)";
+  const statusTextColor=p.status==="aguardando_cliente"?"var(--imp)":p.status==="em_processo"?"var(--accent2)":"#ff8a8a";
+  const respNome=members.find(m=>m.id===p.responsavel)?.name;
+  const div=document.createElement("div");
+  div.className=`task${overdue?" overdue":""}`;
+  div.innerHTML=`
+    <div class="t-body">
+      <div class="t-title">${esc(p.descricao||"")}</div>
+      <div class="t-detail">${p.dre?esc(p.dre)+" · ":""}Responsável: ${respNome?esc(respNome):"em aberto"} · ${esc(pendTrimestreLabel(p.trimestre))} ${esc(String(p.ano||""))}${p.observacao?" · "+esc(p.observacao):""}</div>
+      <div class="t-meta">
+        <span class="tag" style="background:${statusColor};color:${statusTextColor}">${esc(statusInfo.l)}</span>
+        ${overdue?`<span class="tag overdue-badge">⚠️ Vencida</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
+        ${p.recebimento?`<span class="tag" style="background:var(--s3);color:var(--text2)">Recebimento ${fmtD(p.recebimento)}</span>`:""}
+        ${p.entrega?`<span class="tag" style="background:var(--s3);color:var(--text2)">Entrega ${fmtD(p.entrega)}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  if(canEdit){
+    div.addEventListener("click",e=>{
+      if(e.target.closest("button"))return;
+      openPendModal(p.id);
+    });
+  }
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openPendModal(p.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deletePend(p.id);});
+  div.querySelector(".btn-postpone")?.addEventListener("click",e=>{
+    e.stopPropagation();
+    openPostponePendModal(p.id);
+  });
+  return div;
+}
+
+function openPostponePendModal(pendId){
+  const p=pendencias.find(x=>x.id===pendId);if(!p)return;
+  const ov=document.createElement("div");
+  ov.className="modal-ov open";
+  ov.innerHTML=`<div class="modal" style="max-width:380px">
+    <h2>📅 Prorrogar prazo</h2>
+    <div class="fg full" style="margin-bottom:10px"><label>Nova data de Entrega</label><input type="date" id="postpone-pend-date" value="${p.entrega||""}"></div>
+    <div class="fg full"><label>Justificativa *</label><textarea id="postpone-pend-motivo" placeholder="Por que o prazo está sendo prorrogado?"></textarea></div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCancelPostponePend">Cancelar</button>
+      <button class="btn-save-m" id="btnConfirmPostponePend">Salvar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector("#btnCancelPostponePend").addEventListener("click",()=>ov.remove());
+  ov.querySelector("#btnConfirmPostponePend").addEventListener("click",async()=>{
+    const novaData=ov.querySelector("#postpone-pend-date").value;
+    const motivo=ov.querySelector("#postpone-pend-motivo").value.trim();
+    if(!novaData){alert("Selecione a nova data.");return;}
+    if(!motivo){alert("A justificativa é obrigatória para prorrogar o prazo.");return;}
+    const dataAntiga=p.entrega?fmtD(p.entrega):"sem data";
+    const logLine=`📅 Prazo prorrogado de ${dataAntiga} para ${fmtD(novaData)} em ${fmtD(today())}. Motivo: ${motivo}`;
+    const novaObs=(p.observacao?p.observacao+"\n\n":"")+logLine;
+    try{
+      await updateDoc(doc(db,"pendencias_dp",pendId),{entrega:novaData,observacao:novaObs});
+      ov.remove();
+    }catch(e){alert("Erro: "+translateErr(e));}
+  });
+}
+
+// --- Importar/Exportar Excel + colar do Excel ---
+function findExistingPend(descricao,empId,entrega,responsavel){
+  return pendencias.find(p=>
+    (p.descricao||"").trim().toUpperCase()===(descricao||"").trim().toUpperCase()&&
+    p.emp===empId&&p.entrega===entrega&&(p.responsavel||"")===(responsavel||"")
+  );
+}
+
+async function processPendImportRows(rowsBySheet){
+  let novos=0,ignorados=0,semEmpresa=0,filiaisCriadas=0,descricoesCriadas=0,responsaveisNaoEncontrados=0;
+  const empByLabel={};
+  empresas.forEach(em=>{empByLabel[em.label.trim().toUpperCase()]=em.id;});
+  const parseDate=v=>{
+    if(!v||v==="-")return"";
+    if(v instanceof Date)return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+    const s=v.toString().trim();
+    const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(m)return`${m[3]}-${m[2]}-${m[1]}`;
+    return"";
+  };
+  const parsedRows=[];
+  for(const rows of rowsBySheet){
+    for(const row of rows){
+      const instRaw=getRowField(row,"Instituicao","Instituição").trim();
+      if(!instRaw){ignorados++;continue;}
+      const empId=empByLabel[instRaw.toUpperCase()];
+      if(!empId){semEmpresa++;continue;}
+
+      const dreRaw=getRowField(row,"DRE").trim();
+      const dre=DRE_OPTIONS.find(d=>d.toUpperCase()===dreRaw.toUpperCase())||dreRaw;
+
+      const respRaw=getRowField(row,"Responsavel","Responsável").trim();
+      let responsavel="";
+      if(respRaw){
+        const m=members.find(mb=>(mb.name||"").trim().toUpperCase()===respRaw.toUpperCase());
+        if(m)responsavel=m.id;
+        else responsaveisNaoEncontrados++;
+      }
+
+      const filialRaw=getRowField(row,"Filial").trim();
+      let filialId="";
+      if(filialRaw){
+        let filObj=filiais.find(f=>f.empId===empId&&f.label.trim().toUpperCase()===filialRaw.toUpperCase());
+        if(!filObj){
+          try{
+            const ordAtual=filiais.filter(f=>f.empId===empId).length;
+            const ref=await addDoc(collection(db,"filiais"),{empId,label:filialRaw,order:ordAtual,createdAt:serverTimestamp()});
+            filialId=ref.id;
+            filiais.push({id:ref.id,empId,label:filialRaw,order:ordAtual});
+            filiaisCriadas++;
+          }catch(e){}
+        }else filialId=filObj.id;
+      }
+
+      const triRaw=getRowField(row,"Trimestre").trim();
+      const triMatch=triRaw.match(/([1-4])\D*TRI\D*(\d{4})/i);
+      const trimestre=triMatch?triMatch[1]:"1";
+      const ano=triMatch?Number(triMatch[2]):new Date().getFullYear();
+
+      const recebimento=parseDate(getRowField(row,"Recebimento"));
+      const entrega=parseDate(getRowField(row,"Entrega"));
+
+      const descRaw=getRowField(row,"Descricao","Descrição").trim();
+      if(!descRaw){ignorados++;continue;}
+      const descricao=descRaw;
+      const existingDesc=pendDescricoes.find(d=>d.texto.trim().toUpperCase()===descricao.toUpperCase());
+      if(!existingDesc){
+        try{await addDoc(collection(db,"pend_descricoes_dp"),{texto:descricao,addedBy:user.uid,addedAt:serverTimestamp()});descricoesCriadas++;pendDescricoes.push({texto:descricao});}catch(e){}
+      }
+
+      const observacao=getRowField(row,"Observacao","Observação").trim();
+
+      const statusRaw=getRowField(row,"Status").trim().toUpperCase();
+      let status="nao_iniciado";
+      if(statusRaw.includes("PROCESSO"))status="em_processo";
+      else if(statusRaw.includes("AGUARD"))status="aguardando_cliente";
+
+      const data={
+        dre,responsavel,emp:empId,filial:filialId,trimestre,ano,recebimento,entrega,
+        descricao,observacao,status,createdBy:user.uid,createdAt:serverTimestamp()
+      };
+      const existing=findExistingPend(descricao,empId,entrega,responsavel);
+      parsedRows.push({data,existing});
+    }
+  }
+  const duplicates=parsedRows.filter(r=>r.existing);
+  const newOnes=parsedRows.filter(r=>!r.existing);
+
+  const finish=async(action)=>{
+    for(const r of newOnes){
+      try{await addDoc(collection(db,"pendencias_dp"),r.data);novos++;}catch(e){}
+    }
+    if(action==="overwrite"){
+      for(const r of duplicates){
+        try{const{createdAt,...rest}=r.data;await updateDoc(doc(db,"pendencias_dp",r.existing.id),rest);}catch(e){}
+      }
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} pendência(s) nova(s) importada(s)\n${action==="overwrite"?`🔄 ${duplicates.length} pendência(s) já existente(s) foram atualizadas\n`:duplicates.length?`⏭️ ${duplicates.length} pendência(s) já existente(s) foram ignoradas (sem alteração)\n`:""}${filiaisCriadas?`🏬 ${filiaisCriadas} filial(is) nova(s) cadastrada(s) automaticamente\n`:""}${descricoesCriadas?`🗂️ ${descricoesCriadas} descrição(ões) nova(s) salva(s) automaticamente\n`:""}${responsaveisNaoEncontrados?`⚠️ ${responsaveisNaoEncontrados} linha(s) com responsável não encontrado entre os membros do DP (ficou em aberto — nomes de responsável são localizados por membros já cadastrados, diferente de filial/descrição que são criados automaticamente)\n`:""}${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de instituição não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem instituição ou descrição preenchida`:""}`);
+  };
+
+  if(duplicates.length){
+    const ov=document.createElement("div");
+    ov.className="modal-ov open";
+    ov.innerHTML=`<div class="modal" style="max-width:420px">
+      <h2>⚠️ Pendências já existentes</h2>
+      <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">Encontramos <strong>${duplicates.length}</strong> linha${duplicates.length!==1?"s":""} desta planilha que já ${duplicates.length!==1?"existem":"existe"} no sistema (mesma descrição, instituição, responsável e data de entrega). ${newOnes.length} linha${newOnes.length!==1?"s são novas e serão":" é nova e será"} importada${newOnes.length!==1?"s":""} normalmente. O que fazer com ${duplicates.length!==1?"as duplicadas":"a duplicada"}?</p>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnPendDupSkip">⏭️ Ignorar duplicadas</button>
+        <button class="btn-save-m" id="btnPendDupOverwrite">🔄 Substituir dados</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("#btnPendDupSkip").addEventListener("click",async()=>{ov.remove();await finish("skip");});
+    ov.querySelector("#btnPendDupOverwrite").addEventListener("click",async()=>{ov.remove();await finish("overwrite");});
+  }else{
+    await finish("skip");
+  }
+}
+
+document.getElementById("btnImportPendTrigger")?.addEventListener("click",()=>document.getElementById("importPendFile").click());
+document.getElementById("importPendFile")?.addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  e.target.value="";
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=window.XLSX.read(buf,{type:"array",cellDates:true});
+    const rowsBySheet=wb.SheetNames.map(sn=>window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""}));
+    await processPendImportRows(rowsBySheet);
+  }catch(err){alert("Erro ao importar: "+translateErr(err));}
+});
+
+document.addEventListener("paste",async e=>{
+  const activeView=document.querySelector(".view.active");
+  if(!activeView||activeView.id!=="view-pendencias")return;
+  if(["INPUT","TEXTAREA"].includes(e.target.tagName)||e.target.isContentEditable)return;
+  const text=e.clipboardData?.getData("text/plain")||"";
+  if(!text||!text.includes("\t"))return; // só age se parecer uma tabela colada do Excel (com tabulações)
+  e.preventDefault();
+  const rows=parseTSVToRows(text);
+  if(!rows.length){alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (DRE, Instituição, etc.) e as linhas de dados.");return;}
+  if(!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como pendências?`))return;
+  await processPendImportRows([rows]);
+});
+
+document.getElementById("btnExportPend")?.addEventListener("click",()=>{
+  const rows=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).map(p=>{
+    const emp=getEmp(p.emp);
+    const filObj=filiais.find(f=>f.id===p.filial);
+    const respNome=members.find(m=>m.id===p.responsavel)?.name;
+    return{
+      DRE:p.dre||"",
+      Responsavel:respNome||"",
+      Instituicao:emp.label,
+      Filial:filObj?filObj.label:"",
+      Trimestre:`${p.trimestre}° TRI ${p.ano}`,
+      Recebimento:p.recebimento?fmtD(p.recebimento):"",
+      Entrega:p.entrega?fmtD(p.entrega):"",
+      Descricao:p.descricao||"",
+      Observacao:p.observacao||"",
+      Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||""
+    };
+  });
+  if(!rows.length){alert("Nenhuma pendência encontrada.");return;}
+  const ws=window.XLSX.utils.json_to_sheet(rows);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Pendencias");
+  window.XLSX.writeFile(wb,`pendencias_departamento_pessoal_${today()}.xlsx`);
+});
+
 function populateDegFilialSel(empId){
   const sel=document.getElementById("deg-filial");if(!sel)return;
   const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
@@ -4813,6 +5446,17 @@ async function collectBackupData(periodo){
       DataBase:x.dataBase?fmtD(x.dataBase):"",Status:x.status==="concluido"?"Concluído":"Em andamento",
       Passos:`${doneCount}/${(x.checklist||[]).length}`,Observacao:x.observacao||"",
       CriadoPor:members.find(m=>m.id===x.createdBy)?.name||"",CriadoEm:fmtDT(x.createdAt)};
+  }));
+
+  push("Pendencias",pendencias.filter(p=>inPeriod(p.createdAt,cutoffMs)).map(p=>{
+    const emp=getEmp(p.emp);
+    const filObj=filiais.find(f=>f.id===p.filial);
+    const respNome=members.find(m=>m.id===p.responsavel)?.name;
+    return{DRE:p.dre||"",Responsavel:respNome||"",Instituicao:emp.label,Filial:filObj?filObj.label:"",
+      Trimestre:`${p.trimestre}° TRI ${p.ano}`,Recebimento:p.recebimento?fmtD(p.recebimento):"",
+      Entrega:p.entrega?fmtD(p.entrega):"",Descricao:p.descricao||"",Observacao:p.observacao||"",
+      Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||"",
+      CriadoPor:members.find(m=>m.id===p.createdBy)?.name||""};
   }));
 
   try{
