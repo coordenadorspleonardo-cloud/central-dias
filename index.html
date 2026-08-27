@@ -815,9 +815,30 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         </div>
         <div class="sc admin-only-el" style="display:none">
           <h3>📦 Backup Completo</h3>
-          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Gera um arquivo com todos os dados do sistema, pra você guardar como cópia de segurança fora do app.</p>
-          <button id="btnBackupExcel" class="btn-save-m" style="width:100%;margin-bottom:8px">📊 Baixar Backup em Excel</button>
-          <p style="font-size:.62rem;color:var(--text3);line-height:1.5">💡 O backup em PDF não é recomendado aqui — com muitos dados, o PDF vira um documento gigante e difícil de usar. O Excel é o formato certo pra isso: cada tipo de dado (tarefas, membros, empresas, desligamentos, etc.) numa aba separada.</p>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:10px">Gera um arquivo com os dados do sistema, pra guardar como cópia de segurança fora do app. Inclui tarefas, concluídas, histórico completo, desligamentos, chat geral e conversas diretas de todos os colaboradores, grupos, modelos, membros, empresas e filiais. <strong>Não inclui</strong> o Quadro de Anotações (é privado de cada usuário).</p>
+          <div class="fg full" style="margin-bottom:8px"><label>Período</label>
+            <select id="backup-periodo" style="width:100%;background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.78rem;padding:7px 10px;">
+              <option value="all">📦 Backup geral (tudo, desde o início)</option>
+              <option value="0">Hoje</option>
+              <option value="1">Ontem</option>
+              <option value="2">Últimos 2 dias</option>
+              <option value="3">Últimos 3 dias</option>
+              <option value="4">Últimos 4 dias</option>
+              <option value="5">Últimos 5 dias</option>
+              <option value="6">Últimos 6 dias</option>
+              <option value="7">Última semana</option>
+              <option value="14">Últimas 2 semanas</option>
+              <option value="21">Últimas 3 semanas</option>
+              <option value="28">Últimas 4 semanas</option>
+              <option value="30">Último mês</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:16px;margin-bottom:10px;font-size:.75rem">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="backup-fmt-excel" checked style="width:auto"> Excel</label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="backup-fmt-pdf" style="width:auto"> PDF</label>
+          </div>
+          <button id="btnGerarBackup" class="btn-save-m" style="width:100%">📦 Gerar Backup</button>
+          <p style="font-size:.62rem;color:var(--text3);line-height:1.5;margin-top:8px">💡 No backup <strong>geral</strong> (tudo), use Excel — em PDF um histórico completo vira um arquivo gigante e difícil de ler. Pra backups <strong>por período</strong> (ex: semanal), PDF funciona bem e é mais fácil de abrir rápido no celular.</p>
         </div>
         <div class="sc">
           <h3>🎨 Tema Pessoal</h3>
@@ -2724,6 +2745,8 @@ function renderActivityLog(){
     const div=document.createElement("div");
     div.className="task";
     div.style.setProperty("--emp-color",emps[0].color);
+    div.style.cursor="pointer";
+    div.title="Clique pra ver a tarefa";
     div.innerHTML=`<div style="font-size:1rem;margin-top:1px;flex-shrink:0">${icons[a.type]||"•"}</div>
       <div class="t-body">
         <div class="t-title"><strong>${esc(a.actorName)}</strong> ${labels[a.type]||a.type} <em>"${esc(a.taskTit)}"</em></div>
@@ -2732,6 +2755,10 @@ function renderActivityLog(){
           <span style="font-size:.68rem;color:var(--text2)">${fmtDT(a.ts)}</span>
         </div>
       </div>`;
+    div.addEventListener("click",()=>{
+      if(a.taskId&&tasks.some(t=>t.id===a.taskId))openPreview(a.taskId);
+      else showToast("Essa tarefa não existe mais (foi excluída ou já não está na lista atual).","info");
+    });
     c.appendChild(div);
   });
 }
@@ -2748,9 +2775,13 @@ function renderDone(){
     const empLabels=taskEmps(t).map(id=>getEmp(id).label).join(", ")||"—";
     const rem=dleft(t.doneAt);
     const d=document.createElement("div");d.className="done-card";
+    d.style.cursor="pointer";
+    d.title="Clique pra ver a tarefa";
     d.innerHTML=`<div style="flex:1"><div class="dc-title">${esc(t.tit)}</div><div class="dc-meta">${esc(empLabels)} · ${PRIOS[t.prio]?.l} · ${fmtDT(t.doneAt)}</div><div class="dc-exp">⏳ Removida em ${rem} dia${rem!==1?"s":""}</div></div><button class="dc-restore">↩ Restaurar</button>${isAdmin?`<button class="dc-del-now" style="background:rgba(224,92,92,.12);border:1px solid rgba(224,92,92,.25);border-radius:8px;color:var(--urg);cursor:pointer;font-size:.72rem;padding:6px 10px;">🗑 Excluir agora</button>`:""}`;
-    d.querySelector(".dc-restore").addEventListener("click",()=>restoreTask(t.id));
-    d.querySelector(".dc-del-now")?.addEventListener("click",async()=>{
+    d.addEventListener("click",()=>openPreview(t.id));
+    d.querySelector(".dc-restore").addEventListener("click",(e)=>{e.stopPropagation();restoreTask(t.id);});
+    d.querySelector(".dc-del-now")?.addEventListener("click",async(e)=>{
+      e.stopPropagation();
       if(!confirm(`Excluir "${t.tit}" definitivamente agora? Isso não pode ser desfeito.`))return;
       try{await deleteDoc(doc(db,"tasks",t.id));}catch(e){alert("Erro: "+translateErr(e));}
     });
@@ -2918,15 +2949,15 @@ function renderMsgList(container,list,readonly){
 
     let contentHtml="";
     if(msg.audioUrl){
-      contentHtml=`<audio class="msg-audio" controls src="${msg.audioUrl}"></audio>`;
+      contentHtml=`<audio class="msg-audio" controls src="${esc(msg.audioUrl)}"></audio>`;
     }else if(msg.fileUrl){
       if((msg.fileType||"").startsWith("image/")){
-        contentHtml=`<img class="msg-img" src="${msg.fileUrl}" onclick="window.open('${msg.fileUrl}','_blank')">`;
+        contentHtml=`<img class="msg-img" src="${esc(msg.fileUrl)}">`;
       }else{
         contentHtml=`<div class="msg-file">
           <div class="msg-file-icon">${fileIcon(msg.fileName||"")}</div>
           <div class="msg-file-info"><div class="msg-file-name">${esc(msg.fileName||"arquivo")}</div><div class="msg-file-size">${formatSize(msg.fileSize||0)}</div></div>
-          <a class="msg-file-dl" href="${msg.fileUrl}" target="_blank" download>Abrir</a>
+          <a class="msg-file-dl" href="${esc(msg.fileUrl)}" target="_blank" download>Abrir</a>
         </div>`;
       }
     }else{
@@ -2940,6 +2971,11 @@ function renderMsgList(container,list,readonly){
       ${mine&&!readonly?readHtml:""}</div>`;
     if(canDelete){
       d.querySelector('[data-del="1"]')?.addEventListener("click",()=>deleteMsg(coll,msg.id));
+    }
+    if(msg.fileUrl&&(msg.fileType||"").startsWith("image/")){
+      // Handler anexado via addEventListener (não onclick inline) — evita que um fileUrl malicioso
+      // escape do atributo e injete JS, mesmo que esc() já bloqueie isso na maioria dos casos.
+      d.querySelector(".msg-img")?.addEventListener("click",()=>window.open(msg.fileUrl,"_blank"));
     }
     container.appendChild(d);
   });
@@ -3487,14 +3523,13 @@ async function saveTask(){
     watchers:[...modalSelectedWatchers],
     precisaConferencia,
     conferentes:precisaConferencia?[...modalSelectedConferentes]:[],
-    recurrence:recurVal?{type:recurVal}:null,
-    createdBy:user.uid};
+    recurrence:recurVal?{type:recurVal}:null};
   try{
     if(editId){
-      await updateDoc(doc(db,"tasks",editId),data); // não mexe em done/doneAt/realizado/conferido de uma tarefa já existente
+      await updateDoc(doc(db,"tasks",editId),data); // não mexe em done/doneAt/realizado/conferido/createdBy de uma tarefa já existente
     }else{
       data.done=false;data.doneAt=null;data.realizado=false;data.conferido=false;
-      data.createdAt=serverTimestamp();data.cmts=[];
+      data.createdAt=serverTimestamp();data.cmts=[];data.createdBy=user.uid;
       await addDoc(collection(db,"tasks"),data);
       logActivity("created",data);
       sendTaskEmailNotification(data);
@@ -4302,84 +4337,151 @@ document.addEventListener("paste",async e=>{
   await processDegImportRows([rows]);
 });
 
-document.getElementById("btnBackupExcel")?.addEventListener("click",async()=>{
-  if(!isAdmin){alert("Só o Admin pode gerar o backup completo.");return;}
-  const wb=window.XLSX.utils.book_new();
+function slug(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"")||"geral";}
+function backupCutoffMs(periodo){
+  if(periodo==="all")return null;
+  const dateFrom=addDaysToDate(today(),-Number(periodo));
+  return new Date(dateFrom+"T00:00:00").getTime();
+}
+function inPeriod(ts,cutoffMs){return cutoffMs===null?true:tsToMs(ts)>=cutoffMs;}
 
-  const tarefasRows=tasks.map(t=>({
+async function collectBackupData(periodo){
+  const cutoffMs=backupCutoffMs(periodo);
+  const nameOf=uid=>members.find(m=>m.id===uid)?.name||uid||"";
+  const sheets=[];
+  const push=(name,rows)=>sheets.push({name,rows:rows.length?rows:[{Aviso:"Sem dados"}]});
+
+  push("Tarefas Ativas",tasks.filter(t=>!t.done).map(t=>({
     Titulo:t.tit,Detalhes:t.det||"",Empresas:taskEmps(t).map(id=>getEmp(id).label).join(", "),
     Prioridade:PRIOS[t.prio]?.l||t.prio,Prazo:t.date?fmtD(t.date):"",Horario:t.hora||"",
     Responsaveis:taskResps(t).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", "),
-    Concluida:t.done?"SIM":"NÃO",CriadoPor:members.find(m=>m.id===t.createdBy)?.name||t.createdBy||""
-  }));
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(tarefasRows.length?tarefasRows:[{Aviso:"Sem tarefas"}]),"Tarefas");
+    CriadoPor:nameOf(t.createdBy)
+  })));
 
-  const histRows=activityLog.map(a=>({
-    Tipo:a.type,Tarefa:a.taskTit,Empresas:(Array.isArray(a.emp)?a.emp:a.emp?[a.emp]:[]).map(id=>getEmp(id).label).join(", "),
-    Prioridade:a.prio||"",Autor:a.actorName,Data:fmtDT(a.ts)
-  }));
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(histRows.length?histRows:[{Aviso:"Sem histórico"}]),"Historico");
+  push("Concluidas",tasks.filter(t=>t.done&&inPeriod(t.doneAt,cutoffMs)).map(t=>({
+    Titulo:t.tit,Detalhes:t.det||"",Empresas:taskEmps(t).map(id=>getEmp(id).label).join(", "),
+    Prioridade:PRIOS[t.prio]?.l||t.prio,
+    Responsaveis:taskResps(t).map(id=>members.find(m=>m.id===id)?.name).filter(Boolean).join(", "),
+    ConcluidaEm:fmtDT(t.doneAt),CriadoPor:nameOf(t.createdBy)
+  })));
 
-  const degRows=desligamentos.map(d=>{
+  try{
+    const histSnap=await getDocs(collection(db,"activity_log"));
+    const histLabels={created:"criou",completed:"concluiu",reopened:"reabriu",deleted:"excluiu"};
+    const histRows=histSnap.docs.map(d=>d.data()).filter(a=>inPeriod(a.ts,cutoffMs)).sort((a,b)=>tsToMs(b.ts)-tsToMs(a.ts)).map(a=>({
+      Acao:histLabels[a.type]||a.type,Tarefa:a.taskTit,Empresas:(Array.isArray(a.emp)?a.emp:a.emp?[a.emp]:[]).map(id=>getEmp(id).label).join(", "),
+      Prioridade:PRIOS[a.prio]?.l||a.prio||"",Autor:a.actorName,Data:fmtDT(a.ts)
+    }));
+    push("Historico",histRows);
+  }catch(e){sheets.push({name:"Historico",rows:[{Erro:"Não foi possível carregar o histórico: "+translateErr(e)}]});}
+
+  push("Desligamentos",desligamentos.filter(d=>inPeriod(d.createdAt,cutoffMs)).map(d=>{
     const emp=getEmp(d.emp);
     const filObj=filiais.find(f=>f.id===d.filial);
     return{Instituicao:emp.label,Filial:filObj?filObj.label:"",Colaborador:d.colaborador,
       Tipo:TIPO_DISPENSA_LABELS[d.tipo]||d.tipo,Inicio:d.inicio?fmtD(d.inicio):"-",Termino:fmtD(d.termino),
       Vencimento:fmtD(d.vencimento),Pagamento:d.pagamento,Enviado:d.enviado?"SIM":"NÃO",Homologado:d.homologado?"SIM":"NÃO",
       Descontos:d.descontos||"",Homologacao:d.homologData?fmtD(d.homologData):""};
-  });
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(degRows.length?degRows:[{Aviso:"Sem desligamentos"}]),"Desligamentos");
+  }));
 
-  const membrosRows=members.map(m=>({Nome:m.name,Email:m.email,Cargo:m.role||"",Ordem:m.order??""}));
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(membrosRows.length?membrosRows:[{Aviso:"Sem membros"}]),"Membros");
-
-  const empresasRows=empresas.map(e=>({Nome:e.label,Cor:e.color,AdminOnly:e.adminOnly?"SIM":"NÃO",Ordem:e.order??""}));
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(empresasRows.length?empresasRows:[{Aviso:"Sem empresas"}]),"Empresas");
-
-  const filiaisRows=filiais.map(f=>({Empresa:getEmp(f.empId).label,Filial:f.label,Ordem:f.order??""}));
-  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(filiaisRows.length?filiaisRows:[{Aviso:"Sem filiais"}]),"Filiais");
-
-  const nameOf=uid=>members.find(m=>m.id===uid)?.name||uid||"";
-  const addErrSheet=(sheetName,e)=>{
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet([{Erro:"Não foi possível carregar esses dados: "+translateErr(e)}]),sheetName);
-  };
+  push("Membros",members.map(m=>({Nome:m.name,Email:m.email,Cargo:m.role||"",Ordem:m.order??""})));
+  push("Empresas",empresas.map(e=>({Nome:e.label,Cor:e.color,AdminOnly:e.adminOnly?"SIM":"NÃO",Ordem:e.order??""})));
+  push("Filiais",filiais.map(f=>({Empresa:getEmp(f.empId).label,Filial:f.label,Ordem:f.order??""})));
 
   try{
     const chatSnap=await getDocs(collection(db,"chat"));
-    const chatRows=chatSnap.docs.map(d=>{const c=d.data();return{Autor:c.name||nameOf(c.uid),Mensagem:c.text||"",Data:fmtDT(c.ts)};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(chatRows.length?chatRows:[{Aviso:"Sem mensagens"}]),"Chat Geral");
-  }catch(e){addErrSheet("Chat Geral",e);}
+    const chatRows=chatSnap.docs.map(d=>d.data()).filter(c=>inPeriod(c.ts,cutoffMs)).map(c=>({Autor:c.name||nameOf(c.uid),Mensagem:c.text||"",Data:fmtDT(c.ts)}));
+    push("Chat Geral",chatRows);
+  }catch(e){sheets.push({name:"Chat Geral",rows:[{Erro:"Não foi possível carregar o chat: "+translateErr(e)}]});}
 
   try{
     const dmSnap=await getDocs(collection(db,"dm_messages"));
-    const dmRows=dmSnap.docs.map(d=>{const m=d.data();return{Conversa:m.convId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(dmRows.length?dmRows:[{Aviso:"Sem mensagens diretas"}]),"DMs");
-  }catch(e){addErrSheet("DMs",e);}
+    const dmRows=dmSnap.docs.map(d=>d.data()).filter(m=>inPeriod(m.ts,cutoffMs)).map(m=>{
+      const parts=Array.isArray(m.participants)?m.participants.map(nameOf).filter(Boolean):[];
+      return{Conversa:parts.length?parts.join(" ↔ "):(m.convId||""),De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};
+    });
+    push("DMs (todas as conversas)",dmRows);
+  }catch(e){sheets.push({name:"DMs (todas as conversas)",rows:[{Erro:"Não foi possível carregar as mensagens diretas: "+translateErr(e)}]});}
 
   try{
     const gcSnap=await getDocs(collection(db,"group_chats"));
     const groupNameById={};
     const gcRows=gcSnap.docs.map(d=>{const g=d.data();groupNameById[d.id]=g.name||d.id;return{Nome:g.name||"",Membros:(g.members||[]).map(nameOf).join(", ")};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gcRows.length?gcRows:[{Aviso:"Sem grupos"}]),"Grupos");
+    push("Grupos",gcRows);
 
     const gmSnap=await getDocs(collection(db,"group_messages"));
-    const gmRows=gmSnap.docs.map(d=>{const m=d.data();return{Grupo:groupNameById[m.groupId]||m.groupId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(gmRows.length?gmRows:[{Aviso:"Sem mensagens de grupo"}]),"Mensagens de Grupo");
-  }catch(e){addErrSheet("Grupos",e);}
+    const gmRows=gmSnap.docs.map(d=>d.data()).filter(m=>inPeriod(m.ts,cutoffMs)).map(m=>({Grupo:groupNameById[m.groupId]||m.groupId||"",De:nameOf(m.from),Mensagem:m.text||"",Data:fmtDT(m.ts)}));
+    push("Mensagens de Grupo",gmRows);
+  }catch(e){sheets.push({name:"Grupos",rows:[{Erro:"Não foi possível carregar os grupos: "+translateErr(e)}]});}
 
   try{
     const ttSnap=await getDocs(collection(db,"task_templates"));
     const ttRows=ttSnap.docs.map(d=>{const t=d.data();return{Nome:t.name||"",Titulo:t.tit||"",Detalhes:t.det||"",Empresas:(t.emp||[]).map(id=>getEmp(id).label).join(", "),Prioridade:PRIOS[t.prio]?.l||t.prio||"",CriadoPor:nameOf(t.createdBy)};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(ttRows.length?ttRows:[{Aviso:"Sem modelos"}]),"Modelos de Tarefa");
-  }catch(e){addErrSheet("Modelos de Tarefa",e);}
+    push("Modelos de Tarefa",ttRows);
+  }catch(e){sheets.push({name:"Modelos de Tarefa",rows:[{Erro:"Não foi possível carregar os modelos: "+translateErr(e)}]});}
 
   try{
     const invSnap=await getDocs(collection(db,"invites_dp"));
     const invRows=invSnap.docs.map(d=>{const i=d.data();return{Email:d.id,Permitido:i.allowed?"SIM":"NÃO",AdicionadoPor:nameOf(i.addedBy),Data:fmtDT(i.addedAt)};});
-    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(invRows.length?invRows:[{Aviso:"Sem convites"}]),"Convites");
-  }catch(e){addErrSheet("Convites",e);}
+    push("Convites",invRows);
+  }catch(e){sheets.push({name:"Convites",rows:[{Erro:"Não foi possível carregar os convites: "+translateErr(e)}]});}
 
-  window.XLSX.writeFile(wb,`backup_central_dias_${today()}.xlsx`);
+  return{sheets};
+}
+
+function exportBackupExcel(data,periodoSlug){
+  const wb=window.XLSX.utils.book_new();
+  data.sheets.forEach(s=>{
+    window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(s.rows),s.name.slice(0,31));
+  });
+  window.XLSX.writeFile(wb,`backup_central_dias_${periodoSlug}_${today()}.xlsx`);
+}
+
+function exportBackupPDF(data,periodoLabel,periodoSlug){
+  const{jsPDF}=window.jspdf;
+  const docPdf=new jsPDF({orientation:"landscape"});
+  let first=true;
+  data.sheets.forEach(s=>{
+    if(!first)docPdf.addPage();
+    first=false;
+    docPdf.setFontSize(14);
+    docPdf.text(`Backup Central Dias — ${s.name}`,14,15);
+    docPdf.setFontSize(9);
+    docPdf.text(`Período: ${periodoLabel} · Gerado em ${fmtD(today())}`,14,21);
+    const cols=Object.keys(s.rows[0]||{Aviso:""});
+    docPdf.autoTable({
+      startY:26,
+      head:[cols],
+      body:s.rows.map(r=>cols.map(c=>String(r[c]??""))),
+      styles:{fontSize:6.5},
+      headStyles:{fillColor:[26,31,54]}
+    });
+  });
+  docPdf.save(`backup_central_dias_${periodoSlug}_${today()}.pdf`);
+}
+
+document.getElementById("btnGerarBackup")?.addEventListener("click",async()=>{
+  if(!isAdmin){alert("Só o Admin pode gerar o backup completo.");return;}
+  const sel=document.getElementById("backup-periodo");
+  const periodo=sel.value;
+  const periodoLabel=sel.options[sel.selectedIndex].text;
+  const periodoSlug=slug(periodoLabel);
+  const wantExcel=document.getElementById("backup-fmt-excel").checked;
+  const wantPdf=document.getElementById("backup-fmt-pdf").checked;
+  if(!wantExcel&&!wantPdf){alert("Marque pelo menos um formato (Excel ou PDF).");return;}
+  const btn=document.getElementById("btnGerarBackup");
+  const origTxt=btn.textContent;
+  btn.disabled=true;btn.textContent="⏳ Gerando backup...";
+  try{
+    const data=await collectBackupData(periodo);
+    if(wantExcel)exportBackupExcel(data,periodoSlug);
+    if(wantPdf)exportBackupPDF(data,periodoLabel,periodoSlug);
+    showToast("Backup gerado! Confira os downloads.","success");
+  }catch(e){
+    alert("Erro ao gerar o backup: "+translateErr(e));
+  }finally{
+    btn.disabled=false;btn.textContent=origTxt;
+  }
 });
 
 function openDegReportModal(){
