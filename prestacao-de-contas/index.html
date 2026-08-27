@@ -798,6 +798,10 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
     <div class="view" id="view-pendencias">
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <button class="fp on" data-pendviewmode="ativas">🗂️ Ativas <span id="pendAtivasBadge" class="tbadge" style="display:none;background:var(--urg)"></span></button>
+        <button class="fp" data-pendviewmode="concluidas">✅ Concluídas <span id="pendConcluidasBadge" class="tbadge" style="display:none;background:var(--nor)"></span></button>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
         <span class="filter-label">Empresa</span>
         <div id="pendEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
       </div>
@@ -1009,7 +1013,7 @@ import {
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc,
   deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp,
-  increment, arrayUnion, runTransaction
+  increment, arrayUnion, arrayRemove, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── CONFIG ──
@@ -1094,7 +1098,7 @@ let presenceData={};
 let filiaisPc=[], unsubFiliaisPc=null;
 let tecnicosPc=[], unsubTecnicosPc=null;
 let pendencias=[], unsubPendencias=null;
-let pendEmpFilter="all", pendStatusFilter="all", pendPeriodFilter="all", pendMiniDashExpanded=false, editPendId=null;
+let pendEmpFilter="all", pendStatusFilter="all", pendPeriodFilter="all", pendMiniDashExpanded=false, editPendId=null, pendViewMode="ativas";
 
 // ── CERTIFICADOS e ALUGUEL (abas novas, 25/08/2026, só Prestação de Contas) ──
 let certificadosPc=[], unsubCertificadosPc=null, editCertId=null, certEmpFilter="all";
@@ -1228,6 +1232,7 @@ const ERR_MESSAGES={
   "auth/email-already-in-use":"E-mail já cadastrado. Use \"Entrar\".",
   "auth/user-not-found":"E-mail não encontrado.",
   "auth/popup-closed-by-user":"Login cancelado.",
+  "failed-precondition":"Essa conversa precisa de um ajuste de configuração no banco de dados (índice do Firestore) pra funcionar. Avise o Admin.",
 };
 function translateErr(e){
   const code=e?.code||"";
@@ -2958,7 +2963,7 @@ function renderChat(){
     unsubDM=onSnapshot(query(collection(db,"dm_messages_pc"),where("participants","array-contains",user.uid),where("convId","==","self_"+user.uid),orderBy("ts","asc")),snap=>{
       const selfMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,selfMsgs,false);
-    },err=>{console.error("erro notas:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
+    },err=>{console.error("erro notas:",err);mc.innerHTML=`<div class="empty">⚠️ ${esc(translateErr(err))}</div>`;});
     return;
   }
 
@@ -2974,7 +2979,7 @@ function renderChat(){
     unsubDM=onSnapshot(query(collection(db,"dm_messages_pc"),where("convId","==",cid),orderBy("ts","asc")),snap=>{
       const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,dmMsgs,true);
-    },err=>{console.error("erro monitor:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
+    },err=>{console.error("erro monitor:",err);mc.innerHTML=`<div class="empty">⚠️ ${esc(translateErr(err))}</div>`;});
     return;
   }
   document.getElementById("chatInp").disabled=false;
@@ -3012,7 +3017,7 @@ function renderChat(){
       const gMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderMsgList(mc,gMsgs,!g);
       if(g)markAsRead(gMsgs,"group_messages_pc");
-    },err=>{console.error("erro grupo:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
+    },err=>{console.error("erro grupo:",err);mc.innerHTML=`<div class="empty">⚠️ ${esc(translateErr(err))}</div>`;});
     return;
   }
 
@@ -3045,7 +3050,7 @@ function renderChat(){
     const dmMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderMsgList(mc,dmMsgs,false);
     markAsRead(dmMsgs);
-  },err=>{console.error("erro dm:",err);mc.innerHTML=`<div class="empty">Erro: ${esc(err.code||err.message||"desconhecido")}</div>`;});
+  },err=>{console.error("erro dm:",err);mc.innerHTML=`<div class="empty">⚠️ ${esc(translateErr(err))}</div>`;});
 }
 
 function renderMsgList(container,list,readonly){
@@ -3727,7 +3732,7 @@ async function collectBackupData(periodo){
   push("Pendencias",pendencias.filter(p=>inPeriod(p.createdAt,cutoffMs)).map(p=>({
     Empresa:getEmp(p.emp).label,Filial:filLabel(p.filial),DRE:p.dre||"",Tecnico:p.tecnico||"",
     Trimestre:p.trimestre||"",Ano:p.ano||"",Recebimento:p.recebimento?fmtD(p.recebimento):"",Entrega:p.entrega?fmtD(p.entrega):"",
-    Descricao:p.descricao||"",Status:p.status||"",Observacao:p.observacao||"",CriadoPor:nameOf(p.createdBy),CriadoEm:fmtDT(p.createdAt)
+    Descricao:p.descricao||"",Status:p.status||"",Concluida:p.concluida?"SIM":"NÃO",Observacao:p.observacao||"",CriadoPor:nameOf(p.createdBy),CriadoEm:fmtDT(p.createdAt)
   })));
 
   push("Certificados",certificadosPc.filter(c=>inPeriod(c.createdAt,cutoffMs)).map(c=>({
@@ -4436,6 +4441,14 @@ document.querySelectorAll("[data-pendstatus]").forEach(btn=>{
     renderPendencias();
   });
 });
+document.querySelectorAll("[data-pendviewmode]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    pendViewMode=btn.dataset.pendviewmode;
+    document.querySelectorAll("[data-pendviewmode]").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    renderPendencias();
+  });
+});
 document.getElementById("pendPeriodoSel")?.addEventListener("change",function(){
   pendPeriodFilter=this.value;
   const wrap=document.getElementById("pendPeriodoCustomWrap");
@@ -4465,27 +4478,37 @@ function filterPendByPeriodo(arr){
 // --- Listagem ---
 function renderPendencias(){
   const list=document.getElementById("pendList");if(!list)return;
-  let visP=isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly);
+  const baseVis=isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly);
+  const ativasAll=baseVis.filter(p=>!p.concluida);
+  const concluidasAll=baseVis.filter(p=>p.concluida);
+
+  const ativasBadge=document.getElementById("pendAtivasBadge");
+  if(ativasBadge){if(ativasAll.length>0){ativasBadge.style.display="inline-flex";ativasBadge.textContent=ativasAll.length;}else ativasBadge.style.display="none";}
+  const concluidasBadge=document.getElementById("pendConcluidasBadge");
+  if(concluidasBadge){if(concluidasAll.length>0){concluidasBadge.style.display="inline-flex";concluidasBadge.textContent=concluidasAll.length;}else concluidasBadge.style.display="none";}
+
+  let visP=pendViewMode==="concluidas"?concluidasAll:ativasAll;
   let visPForDash=visP;
   if(pendEmpFilter!=="all"){visP=visP.filter(p=>p.emp===pendEmpFilter);visPForDash=visPForDash.filter(p=>p.emp===pendEmpFilter);}
   visP=filterPendByPeriodo(visP);visPForDash=filterPendByPeriodo(visPForDash);
   if(pendStatusFilter!=="all")visP=visP.filter(p=>p.status===pendStatusFilter);
 
   const summary=document.getElementById("pendSummary");
-  const totalPend=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).length;
   const hoje=today();
-  const vencendoSemana=(isAdmin?pendencias:pendencias.filter(p=>!getEmp(p.emp).adminOnly)).filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=today(7)).length;
-  if(summary)summary.textContent=`🗂️ ${totalPend} pendência${totalPend!==1?"s":""} no total · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
+  const vencendoSemana=ativasAll.filter(p=>p.entrega&&p.entrega>=hoje&&p.entrega<=today(7)).length;
+  if(summary)summary.textContent=pendViewMode==="concluidas"
+    ?`✅ ${concluidasAll.length} pendência${concluidasAll.length!==1?"s":""} concluída${concluidasAll.length!==1?"s":""}`
+    :`🗂️ ${ativasAll.length} pendência${ativasAll.length!==1?"s":""} ativa${ativasAll.length!==1?"s":""} · ⏰ ${vencendoSemana} vencendo nos próximos 7 dias`;
 
   const badge=document.getElementById("pendTabBadge");
   if(badge){
-    if(visP.length>0){badge.style.display="inline-flex";badge.textContent=visP.length;}
+    if(ativasAll.length>0){badge.style.display="inline-flex";badge.textContent=ativasAll.length;}
     else badge.style.display="none";
   }
 
   renderPendMiniDash(visPForDash);
 
-  if(!visP.length){list.innerHTML='<div class="empty">Nenhuma pendência encontrada com esses filtros.</div>';return;}
+  if(!visP.length){list.innerHTML=`<div class="empty">Nenhuma pendência ${pendViewMode==="concluidas"?"concluída ":""}encontrada com esses filtros.</div>`;return;}
 
   const byEmp={};
   visP.forEach(p=>{(byEmp[p.emp]||(byEmp[p.emp]=[])).push(p);});
@@ -4562,39 +4585,95 @@ function renderPendMiniDash(visP){
 
 function buildPendCard(p){
   const canEdit=isAdmin||p.createdBy===user?.uid;
-  const overdue=!!(p.entrega&&p.entrega<today());
+  const overdue=!!(p.entrega&&p.entrega<today()&&!p.concluida);
   const statusInfo=PEND_STATUS_OPTIONS.find(s=>s.v===p.status)||PEND_STATUS_OPTIONS[0];
   const statusColor=p.status==="aguardando_cliente"?"rgba(224,140,58,.16)":p.status==="em_processo"?"rgba(124,111,205,.16)":"rgba(224,92,92,.16)";
   const statusTextColor=p.status==="aguardando_cliente"?"var(--imp)":p.status==="em_processo"?"var(--accent2)":"#ff8a8a";
+  const cmts=(p.cmts||[]).length;
   const div=document.createElement("div");
-  div.className=`task${overdue?" overdue":""}`;
+  div.className=`task${p.concluida?" done":""}${overdue?" overdue":""}`;
   div.innerHTML=`
+    <div class="chk" title="Marcar como concluída">${p.concluida?"✓":""}</div>
     <div class="t-body">
       <div class="t-title">${esc(p.descricao||"")}</div>
       <div class="t-detail">${p.dre?esc(p.dre)+" · ":""}Técnico: ${p.tecnico?esc(p.tecnico):"em aberto"} · ${esc(pendTrimestreLabel(p.trimestre))} ${esc(String(p.ano||""))}${p.observacao?" · "+esc(p.observacao):""}</div>
       <div class="t-meta">
         <span class="tag" style="background:${statusColor};color:${statusTextColor}">${esc(statusInfo.l)}</span>
+        ${p.concluida?`<span class="tag" style="background:rgba(76,175,125,.16);color:#5fdb9c">✅ Concluída${p.concluidaEm?" em "+fmtDT(p.concluidaEm):""}</span>`:""}
         ${overdue?`<span class="tag overdue-badge">⚠️ Vencida</span>${canEdit?`<button class="btn-postpone">📅 Prorrogar</button>`:""}`:""}
         ${p.recebimento?`<span class="tag" style="background:var(--s3);color:var(--text2)">Recebimento ${fmtD(p.recebimento)}</span>`:""}
         ${p.entrega?`<span class="tag" style="background:var(--s3);color:var(--text2)">Entrega ${fmtD(p.entrega)}</span>`:""}
+        ${cmts>0?`<span class="tag cmt-badge">💬 ${cmts} coment${cmts!==1?"ários":"ário"}</span>`:""}
+      </div>
+      <div class="t-comments" id="pendcmt-${p.id}">
+        <div>${(p.cmts||[]).map((cc,ci)=>`<div class="cmt-item"><span class="cmt-who">${esc(cc.who)}</span><span style="flex:1">${esc(cc.text)}</span><span class="cmt-time">${fmtDT(cc.ts)}</span>${canDeletePendComment(p,cc)?`<button class="cmt-del" data-cidx="${ci}" title="Excluir comentário">🗑</button>`:""}</div>`).join("")}</div>
+        <div class="cmt-input-row"><input class="cmt-input" placeholder="Comentar... (Enter)"><button class="cmt-send">↑</button></div>
       </div>
     </div>
     <div class="t-actions">
+      <button class="bi cmt">${cmts?"💬"+cmts:"💬"}</button>
       ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
     </div>`;
-  if(canEdit){
-    div.addEventListener("click",e=>{
-      if(e.target.closest("button"))return;
-      openPendModal(p.id);
-    });
-  }
+  div.addEventListener("click",e=>{
+    if(e.target.closest("input,button,.chk,.cmt-input-row,.t-comments,.cmt-badge"))return;
+    if(canEdit)openPendModal(p.id);
+  });
+  div.querySelector(".chk").addEventListener("click",e=>{e.stopPropagation();togglePendConcluida(p.id);});
   div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openPendModal(p.id);});
   div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deletePend(p.id);});
   div.querySelector(".btn-postpone")?.addEventListener("click",e=>{
     e.stopPropagation();
     openPostponePendModal(p.id);
   });
+  div.querySelector(".bi.cmt")?.addEventListener("click",()=>{
+    const el=document.getElementById("pendcmt-"+p.id);el.classList.toggle("open");
+    if(el.classList.contains("open"))el.querySelector(".cmt-input")?.focus();
+  });
+  div.querySelector(".cmt-badge")?.addEventListener("click",()=>{
+    const el=document.getElementById("pendcmt-"+p.id);el.classList.toggle("open");
+    if(el.classList.contains("open"))el.querySelector(".cmt-input")?.focus();
+  });
+  div.querySelectorAll(".cmt-del").forEach(btn=>{
+    btn.addEventListener("click",e=>{e.stopPropagation();deletePendComment(p.id,+btn.dataset.cidx);});
+  });
+  const cmtInp=div.querySelector(".cmt-input");
+  const cmtSend=div.querySelector(".cmt-send");
+  cmtSend?.addEventListener("click",()=>addPendCmt(p.id,cmtInp));
+  cmtInp?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPendCmt(p.id,cmtInp);}});
   return div;
+}
+
+async function togglePendConcluida(id){
+  const p=pendencias.find(x=>x.id===id);if(!p)return;
+  const novoValor=!p.concluida;
+  try{
+    await updateDoc(doc(db,"pendencias_pc",id),{
+      concluida:novoValor,
+      concluidaEm:novoValor?serverTimestamp():null,
+      concluidaPor:novoValor?user.uid:null
+    });
+  }catch(e){alert("Erro: "+translateErr(e));}
+}
+
+async function addPendCmt(id,inp){
+  const text=(inp?.value||"").trim();if(!text)return;
+  const p=pendencias.find(x=>x.id===id);if(!p)return;
+  const novoCmt={who:user.displayName||user.email,uid:user.uid,text,ts:Date.now()};
+  try{await updateDoc(doc(db,"pendencias_pc",id),{cmts:arrayUnion(novoCmt)});inp.value="";}catch(e){showToast("Não consegui salvar o comentário: "+translateErr(e),"err");}
+}
+
+function canDeletePendComment(p,cc){
+  if(isAdmin||p.createdBy===user?.uid)return true;
+  if(cc.uid)return cc.uid===user?.uid;
+  return cc.who===(user?.displayName||user?.email);
+}
+
+async function deletePendComment(pendId,idx){
+  const p=pendencias.find(x=>x.id===pendId);if(!p)return;
+  const cc=(p.cmts||[])[idx];if(!cc)return;
+  if(!canDeletePendComment(p,cc))return;
+  if(!confirm("Excluir este comentário?"))return;
+  try{await updateDoc(doc(db,"pendencias_pc",pendId),{cmts:arrayRemove(cc)});}catch(e){alert("Erro: "+translateErr(e));}
 }
 
 function openPostponePendModal(pendId){
@@ -5263,7 +5342,8 @@ document.getElementById("btnExportPend")?.addEventListener("click",()=>{
       Entrega:p.entrega?fmtD(p.entrega):"",
       Descricao:p.descricao||"",
       Observacao:p.observacao||"",
-      Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||""
+      Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||"",
+      Concluida:p.concluida?"SIM":"NÃO"
     };
   });
   if(!rows.length){alert("Nenhuma pendência encontrada.");return;}
