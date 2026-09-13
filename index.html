@@ -449,6 +449,14 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
   <div id="degDeadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
 </div>
 
+<div id="afastDeadlinePopup" style="display:none;position:fixed;bottom:20px;left:660px;z-index:500;width:300px;max-width:calc(100vw - 680px);background:var(--s2);border:1px solid var(--imp);border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.5);overflow:hidden;">
+  <div id="afastDeadlinePopupHd" class="popup-drag-handle" style="background:rgba(224,140,58,.14);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:move;">
+    <span style="font-size:.78rem;font-weight:700;color:var(--imp)">🩺 Afastamentos vencendo (<span id="afastDeadlinePopupCount">0</span>)</span>
+    <button id="btnCloseAfastDeadline" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:.9rem;line-height:1;">✕</button>
+  </div>
+  <div id="afastDeadlinePopupList" style="max-height:260px;overflow-y:auto;padding:6px;"></div>
+</div>
+
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
@@ -613,6 +621,39 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
+  <!-- MODAL AFASTAMENTO (DP) -->
+  <div class="modal-ov" id="modalAfastOv">
+    <div class="modal">
+      <h2 id="modalAfastTitle">Novo Afastamento</h2>
+      <div class="fg-grid">
+        <div class="fg"><label>Empresa *</label>
+          <select id="afast-emp"></select>
+        </div>
+        <div class="fg"><label>Filial/Unidade</label>
+          <select id="afast-filial"><option value="">— Nenhuma —</option></select>
+        </div>
+        <div class="fg full"><label>Colaboradora *</label><input type="text" id="afast-colab" placeholder="Nome da colaboradora"></div>
+        <div class="fg full"><label>Motivo do Afastamento *</label><input type="text" id="afast-motivo" placeholder="Ex: Atestado médico, Licença maternidade, etc."></div>
+        <div class="fg"><label>CID</label><input type="text" id="afast-cid" placeholder="Ex: Z34"></div>
+        <div class="fg"><label>Início *</label><input type="date" id="afast-inicio"></div>
+        <div class="fg"><label>Término *</label><input type="date" id="afast-termino"></div>
+        <div class="fg"><label>Exame de Retorno ao Trabalho</label><input type="date" id="afast-exame"></div>
+        <div class="fg"><label>Prorrogação do Afastamento</label>
+          <select id="afast-prorrogacao">
+            <option value="nao">Não</option>
+            <option value="sim">Sim</option>
+          </select>
+        </div>
+        <div class="fg" id="afast-prorrog-data-wrap" style="display:none"><label>Data da Prorrogação</label><input type="date" id="afast-prorrog-data"></div>
+        <div class="fg full"><label>Observações</label><input type="text" id="afast-obs" placeholder="Observações (opcional)"></div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnCancelAfastModal">Cancelar</button>
+        <button class="btn-save-m" id="btnSaveAfast">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL PENDÊNCIA (DP) -->
   <div class="modal-ov" id="modalPendOv">
     <div class="modal">
@@ -720,6 +761,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
+    <button class="tab" data-tab="afastamentos">🩺 Afastamentos <span class="tbadge" id="afastTabBadge" style="display:none;background:var(--imp)"></span></button>
     <button class="tab" data-tab="processos">📚 Processos</button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
@@ -869,6 +911,42 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente.</div>
       <div id="pendMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="pendList"></div>
+    </div>
+    <div class="view" id="view-afastamentos">
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <button class="fp on" data-afaststatus="pendente">Pendentes</button>
+        <button class="fp" data-afaststatus="finalizado">Finalizados</button>
+        <button class="fp" data-afaststatus="all">Todos</button>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Empresa</span>
+        <div id="afastEmpFilters" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
+        <span class="filter-label">Período (Término)</span>
+        <select id="afastPeriodoSel" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:6px 10px;">
+          <option value="all">Todo período</option>
+          <option value="atrasado">Vencidos</option>
+          <option value="0">Hoje</option>
+          <option value="3">Próximos 3 dias</option>
+          <option value="7">Próximos 7 dias</option>
+          <option value="30">Próximos 30 dias</option>
+          <option value="custom">Personalizado</option>
+        </select>
+        <div id="afastPeriodoCustomWrap" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="afastPeriodoDe" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+          <span style="color:var(--text2);font-size:.72rem">até</span>
+          <input type="date" id="afastPeriodoAte" style="background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.72rem;padding:5px 8px;">
+        </div>
+        <button id="btnExportAfast" class="btn-cancel" style="margin-left:auto">📤 Exportar Excel</button>
+        <button id="btnImportAfastTrigger" class="btn-cancel">📥 Importar Excel</button>
+        <input type="file" id="importAfastFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnNewAfast" class="btn-save-m">＋ Novo Afastamento</button>
+      </div>
+      <div id="afastSummary" style="font-size:.72rem;color:var(--text2);margin-bottom:4px;"></div>
+      <div style="font-size:.68rem;color:var(--text3);margin-bottom:12px;">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente. Aviso automático quando faltarem 10 dias para o Término.</div>
+      <div id="afastMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
+      <div id="afastList"></div>
     </div>
     <div class="view" id="view-processos">
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
@@ -1260,6 +1338,7 @@ document.addEventListener("keydown",e=>{
   const top=openModals[openModals.length-1];
   if(top.id==="modalOv")closeModal();
   else if(top.id==="modalDegOv")closeDegModal();
+  else if(top.id==="modalAfastOv")closeAfastModal();
   else top.remove();
 });
 function fmtD(s){if(!s)return"";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;}
@@ -1334,7 +1413,7 @@ function isNotifMuted(){return Date.now()<notifMutedUntil;}
 
 function restorePopupPositions(){
   if(!user)return;
-  ["deadlinePopup","weeklyDigestPopup","degDeadlinePopup"].forEach(id=>{
+  ["deadlinePopup","weeklyDigestPopup","degDeadlinePopup","afastDeadlinePopup"].forEach(id=>{
     const popup=document.getElementById(id);if(!popup)return;
     const saved=JSON.parse(localStorage.getItem("popupPos_"+id+"_"+user.uid)||"null");
     if(saved){popup.style.left=saved.left;popup.style.top=saved.top;popup.style.right="auto";popup.style.bottom="auto";}
@@ -1367,7 +1446,7 @@ function makeDraggable(popupId){
     if(user)localStorage.setItem("popupPos_"+popupId+"_"+user.uid,JSON.stringify({left:popup.style.left,top:popup.style.top}));
   });
 }
-["deadlinePopup","weeklyDigestPopup","degDeadlinePopup"].forEach(makeDraggable);
+["deadlinePopup","weeklyDigestPopup","degDeadlinePopup","afastDeadlinePopup"].forEach(makeDraggable);
 
 function playChime(notes){
   if(isNotifMuted())return;
@@ -1703,7 +1782,7 @@ onAuthStateChanged(auth, async u=>{
       user=u; isAdmin=u.email===ADMIN_EMAIL;
       await ensureMember(u);
       notifMutedUntil=Number(localStorage.getItem("notifMutedUntil_"+u.uid)||0);
-      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
+      loadTheme(); showApp(); startListeners(); startPresence(); startNotificationListeners(); requestNotifPermission(); startDeadlineChecks(); startDegDeadlineChecks(); startAfastDeadlineChecks(); refreshMuteBtn(); restorePopupPositions();
     }catch(e){
       console.error("[Central Dias] Erro ao finalizar login:",e);
       setErr("errLogin","Erro ao entrar: "+translateErr(e));
@@ -1713,6 +1792,7 @@ onAuthStateChanged(auth, async u=>{
     stopNotificationListeners();
     stopDeadlineChecks();
     stopDegDeadlineChecks();
+    stopAfastDeadlineChecks();
     user=null; isAdmin=false;
     stopListeners(); showLogin();
   }
@@ -2193,6 +2273,13 @@ function startListeners(){
   });
   renderPendEmpFilters();
 
+  unsubAfastamentosDp=onSnapshot(collection(db,"afastamentos_dp"),snap=>{
+    afastamentosDp=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAfastamentos();
+    updateAfastDeadlinePopup();
+  });
+  renderAfastEmpFilters();
+
   const processosDefRef=doc(db,"config","processos_dp");
   getDoc(processosDefRef).then(snap=>{
     if(!snap.exists())setDoc(processosDefRef,{list:DEF_PROCESSOS_DP,anexoEsocial:ANEXO_ESOCIAL_DP});
@@ -2212,7 +2299,7 @@ function startListeners(){
     renderProcessoExecucoes();
   });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -4493,6 +4580,481 @@ function openDegModal(id){
 }
 function closeDegModal(){document.getElementById("modalDegOv").classList.remove("open");editDegId=null;}
 
+// ══════════════ AFASTAMENTOS (DP) — 13/09/2026 ══════════════
+let afastamentosDp=[], unsubAfastamentosDp=null;
+let editAfastId=null, afastEmpFilter="all", afastStatusFilter="pendente", afastPeriodFilter="all";
+
+function populateAfastFilialSel(empId){
+  const sel=document.getElementById("afast-filial");if(!sel)return;
+  const list=filiais.filter(f=>f.empId===empId).sort((a,b)=>(a.order??0)-(b.order??0));
+  sel.innerHTML='<option value="">— Nenhuma —</option>'+list.map(f=>`<option value="${f.id}">${esc(f.label)}</option>`).join("");
+}
+document.getElementById("afast-emp")?.addEventListener("change",function(){populateAfastFilialSel(this.value);});
+document.getElementById("afast-prorrogacao")?.addEventListener("change",function(){
+  const wrap=document.getElementById("afast-prorrog-data-wrap");if(wrap)wrap.style.display=this.value==="sim"?"flex":"none";
+});
+
+function openAfastModal(id){
+  editAfastId=id||null;
+  const a=id?afastamentosDp.find(x=>x.id===id):null;
+  document.getElementById("modalAfastTitle").textContent=a?"Editar Afastamento":"Novo Afastamento";
+  const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
+  document.getElementById("afast-emp").innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
+  document.getElementById("afast-emp").value=a?a.emp:(vis[0]?.id||"");
+  populateAfastFilialSel(document.getElementById("afast-emp").value);
+  document.getElementById("afast-filial").value=a?a.filial||"":"";
+  document.getElementById("afast-colab").value=a?a.colaboradora:"";
+  document.getElementById("afast-motivo").value=a?a.motivo:"";
+  document.getElementById("afast-cid").value=a?a.cid||"":"";
+  document.getElementById("afast-inicio").value=a?a.inicio||"":"";
+  document.getElementById("afast-termino").value=a?a.termino||"":"";
+  document.getElementById("afast-exame").value=a?a.exameRetorno||"":"";
+  document.getElementById("afast-prorrogacao").value=a?.prorrogacao?"sim":"nao";
+  document.getElementById("afast-prorrog-data-wrap").style.display=a?.prorrogacao?"flex":"none";
+  document.getElementById("afast-prorrog-data").value=a?a.prorrogacaoData||"":"";
+  document.getElementById("afast-obs").value=a?a.observacoes||"":"";
+  document.getElementById("modalAfastOv").classList.add("open");
+}
+function closeAfastModal(){document.getElementById("modalAfastOv").classList.remove("open");editAfastId=null;}
+document.getElementById("btnNewAfast")?.addEventListener("click",()=>openAfastModal());
+document.getElementById("btnCancelAfastModal")?.addEventListener("click",closeAfastModal);
+document.getElementById("modalAfastOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)closeAfastModal();});
+
+document.getElementById("btnSaveAfast")?.addEventListener("click",async()=>{
+  const colaboradora=document.getElementById("afast-colab").value.trim();
+  const motivo=document.getElementById("afast-motivo").value.trim();
+  const inicio=document.getElementById("afast-inicio").value;
+  const termino=document.getElementById("afast-termino").value;
+  if(!colaboradora){alert("Informe o nome da colaboradora.");return;}
+  if(!motivo){alert("Informe o motivo do afastamento.");return;}
+  if(!inicio){alert("Informe a data de início.");return;}
+  if(!termino){alert("Informe a data de término.");return;}
+  const prorrogacao=document.getElementById("afast-prorrogacao").value==="sim";
+  const data={
+    emp:document.getElementById("afast-emp").value,
+    filial:document.getElementById("afast-filial").value,
+    colaboradora,motivo,
+    cid:document.getElementById("afast-cid").value.trim(),
+    inicio,termino,
+    exameRetorno:document.getElementById("afast-exame").value,
+    prorrogacao,
+    prorrogacaoData:prorrogacao?document.getElementById("afast-prorrog-data").value:"",
+    observacoes:document.getElementById("afast-obs").value.trim(),
+    createdBy:user.uid
+  };
+  try{
+    if(editAfastId){await updateDoc(doc(db,"afastamentos_dp",editAfastId),data);}
+    else{data.finalizado=false;data.createdAt=serverTimestamp();await addDoc(collection(db,"afastamentos_dp"),data);}
+    closeAfastModal();
+  }catch(e){alert("Erro: "+translateErr(e));}
+});
+
+async function deleteAfast(id){
+  if(!confirm("Excluir este afastamento?"))return;
+  try{await deleteDoc(doc(db,"afastamentos_dp",id));}catch(e){}
+}
+
+async function toggleAfastFinalizado(id){
+  const a=afastamentosDp.find(x=>x.id===id);if(!a)return;
+  const novoValor=!a.finalizado;
+  try{
+    await updateDoc(doc(db,"afastamentos_dp",id),{
+      finalizado:novoValor,
+      finalizadoEm:novoValor?serverTimestamp():null,
+      finalizadoPor:novoValor?user.uid:null
+    });
+  }catch(e){alert("Erro: "+translateErr(e));}
+}
+
+function renderAfastEmpFilters(){
+  const c=document.getElementById("afastEmpFilters");if(!c)return;
+  const vis=empresas.filter(e=>isAdmin||!e.adminOnly);
+  c.innerHTML=`<button class="fp${afastEmpFilter==="all"?" on":""}" data-afastemp="all">Todas</button>`+
+    vis.map(e=>`<button class="fp${afastEmpFilter===e.id?" on":""}" data-afastemp="${e.id}" style="${afastEmpFilter===e.id?`background:${e.color}22;border-color:${e.color};color:${e.color};`:""}">${esc(e.label)}</button>`).join("");
+  c.querySelectorAll(".fp").forEach(btn=>{
+    btn.addEventListener("click",()=>{afastEmpFilter=btn.dataset.afastemp;renderAfastEmpFilters();renderAfastamentos();});
+  });
+}
+document.querySelectorAll("[data-afaststatus]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    afastStatusFilter=btn.dataset.afaststatus;
+    document.querySelectorAll("[data-afaststatus]").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");
+    renderAfastamentos();
+  });
+});
+document.getElementById("afastPeriodoSel")?.addEventListener("change",function(){
+  afastPeriodFilter=this.value;
+  const wrap=document.getElementById("afastPeriodoCustomWrap");
+  if(wrap)wrap.style.display=this.value==="custom"?"flex":"none";
+  renderAfastamentos();
+});
+document.getElementById("afastPeriodoDe")?.addEventListener("change",()=>renderAfastamentos());
+document.getElementById("afastPeriodoAte")?.addEventListener("change",()=>renderAfastamentos());
+function filterAfastByPeriodo(arr){
+  if(afastPeriodFilter==="all")return arr;
+  const hoje=today();
+  if(afastPeriodFilter==="atrasado")return arr.filter(a=>a.termino&&a.termino<hoje);
+  if(afastPeriodFilter==="custom"){
+    const de=document.getElementById("afastPeriodoDe")?.value||"";
+    const ate=document.getElementById("afastPeriodoAte")?.value||"";
+    return arr.filter(a=>{
+      if(!a.termino)return false;
+      if(de&&a.termino<de)return false;
+      if(ate&&a.termino>ate)return false;
+      return true;
+    });
+  }
+  const dias=Number(afastPeriodFilter);
+  const limite=addDaysToDate(hoje,dias);
+  return arr.filter(a=>a.termino&&a.termino>=hoje&&a.termino<=limite);
+}
+
+function buildAfastCard(a){
+  const canEdit=isAdmin||a.createdBy===user?.uid;
+  const overdue=!!(a.termino&&a.termino<today()&&!a.finalizado);
+  const emp=getEmp(a.emp);
+  const filObj=filiais.find(f=>f.id===a.filial);
+  const div=document.createElement("div");
+  div.className=`task${a.finalizado?" done":""}${overdue?" overdue":""}`;
+  div.innerHTML=`
+    <div class="chk" title="Marcar como finalizado">${a.finalizado?"✓":""}</div>
+    <div class="t-body">
+      <div class="t-title">${esc(a.colaboradora)}</div>
+      <div class="t-detail">${esc(a.motivo||"")}${a.cid?" · CID "+esc(a.cid):""}${filObj?" · "+esc(filObj.label):""}${a.observacoes?" · "+esc(a.observacoes):""}</div>
+      <div class="t-meta">
+        <span class="tag" style="background:${emp.color}20;color:${emp.color}">${esc(emp.label)}</span>
+        ${a.finalizado?`<span class="tag" style="background:rgba(76,175,125,.16);color:#5fdb9c">✅ Finalizado${a.finalizadoEm?" em "+fmtDT(a.finalizadoEm):""}</span>`:`<span class="tag" style="background:rgba(224,92,92,.16);color:#ff8a8a">⏳ Pendente</span>`}
+        ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
+        ${a.inicio?`<span class="tag" style="background:var(--s3);color:var(--text2)">Início ${fmtD(a.inicio)}</span>`:""}
+        ${a.termino?`<span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(a.termino)}</span>`:""}
+        ${a.exameRetorno?`<span class="tag" style="background:var(--s3);color:var(--text2)">Exame de Retorno ${fmtD(a.exameRetorno)}</span>`:""}
+        ${a.prorrogacao?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">Prorrogado${a.prorrogacaoData?" até "+fmtD(a.prorrogacaoData):""}</span>`:""}
+      </div>
+    </div>
+    <div class="t-actions">
+      ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
+    </div>`;
+  div.addEventListener("click",e=>{
+    if(e.target.closest("button,.chk"))return;
+    if(canEdit)openAfastModal(a.id);
+  });
+  div.querySelector(".chk").addEventListener("click",e=>{e.stopPropagation();toggleAfastFinalizado(a.id);});
+  div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openAfastModal(a.id);});
+  div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deleteAfast(a.id);});
+  return div;
+}
+
+function renderAfastamentos(){
+  const list=document.getElementById("afastList");if(!list)return;
+  let visA=afastamentosDp.filter(a=>isAdmin||!isTaskAdminOnly({emp:[a.emp]}));
+  let visAForDash=visA;
+  if(afastEmpFilter!=="all"){visA=visA.filter(a=>a.emp===afastEmpFilter);visAForDash=visAForDash.filter(a=>a.emp===afastEmpFilter);}
+  visA=filterAfastByPeriodo(visA);visAForDash=filterAfastByPeriodo(visAForDash);
+  if(afastStatusFilter==="pendente")visA=visA.filter(a=>!a.finalizado);
+  else if(afastStatusFilter==="finalizado")visA=visA.filter(a=>a.finalizado);
+
+  const summary=document.getElementById("afastSummary");
+  const pendentesTotal=afastamentosDp.filter(a=>!a.finalizado).length;
+  const hoje=today();
+  const vencendo10=afastamentosDp.filter(a=>!a.finalizado&&a.termino&&a.termino>=hoje&&a.termino<=addDaysToDate(hoje,10)).length;
+  if(summary)summary.textContent=`🩺 ${pendentesTotal} pendente${pendentesTotal!==1?"s":""} no total · ⏰ ${vencendo10} vencendo nos próximos 10 dias`;
+
+  const badge=document.getElementById("afastTabBadge");
+  if(badge){
+    if(pendentesTotal>0){badge.style.display="inline-flex";badge.textContent=pendentesTotal;}
+    else badge.style.display="none";
+  }
+
+  renderAfastMiniDash(visAForDash);
+
+  if(!visA.length){list.innerHTML='<div class="empty">Nenhum afastamento encontrado com esses filtros.</div>';return;}
+
+  const byEmp={};
+  visA.forEach(a=>{(byEmp[a.emp]||(byEmp[a.emp]=[])).push(a);});
+  list.innerHTML="";
+  Object.keys(byEmp).forEach(empId=>{
+    const emp=getEmp(empId);
+    const empKey="afast:emp:"+empId;
+    const empSection=document.createElement("div");
+    empSection.style.marginBottom="22px";
+    const empHd=document.createElement("div");
+    empHd.style.cssText=`display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${emp.color}44`;
+    empHd.innerHTML=`<div style="width:10px;height:10px;border-radius:3px;background:${emp.color}"></div>
+      <span style="font-size:.82rem;font-weight:700;color:${emp.color}">${esc(emp.label)}</span>
+      <span class="sec-cnt">${byEmp[empId].length}</span>
+      ${collapseToggleBtnHtml(empKey)}`;
+    empSection.appendChild(empHd);
+    const empBody=document.createElement("div");
+    empSection.appendChild(empBody);
+    list.appendChild(empSection);
+    wireCollapseToggle(empHd,empBody);
+
+    const byFilial={};
+    byEmp[empId].forEach(a=>{
+      const filObj=filiais.find(f=>f.id===a.filial);
+      const key=filObj?filObj.label:"Sem filial";
+      const order=filObj?(filObj.order??0):9999;
+      if(!byFilial[key])byFilial[key]={order,items:[]};
+      byFilial[key].items.push(a);
+    });
+    Object.keys(byFilial).sort((a,b)=>byFilial[a].order-byFilial[b].order).forEach(filKey=>{
+      const filKeyId="afast:filial:"+empId+":"+filKey;
+      const filDiv=document.createElement("div");filDiv.className="section";
+      filDiv.innerHTML=`<div class="sec-hd"><span class="sec-label">${esc(filKey)}</span><span class="sec-cnt">${byFilial[filKey].items.length}</span><div class="sec-line"></div>${collapseToggleBtnHtml(filKeyId)}</div><div class="tasks-list"></div>`;
+      empBody.appendChild(filDiv);
+      const ct=filDiv.querySelector(".tasks-list");
+      const hd=filDiv.querySelector(".sec-hd");
+      wireCollapseToggle(hd,ct);
+      byFilial[filKey].items.sort((x,y)=>(x.termino||"").localeCompare(y.termino||"")).forEach(a=>ct.appendChild(buildAfastCard(a)));
+    });
+  });
+}
+
+function renderAfastMiniDash(visA){
+  const c=document.getElementById("afastMiniDash");if(!c)return;
+  const pendentes=visA.filter(a=>!a.finalizado).length;
+  const finalizados=visA.filter(a=>a.finalizado).length;
+  const atrasados=visA.filter(a=>!a.finalizado&&a.termino&&a.termino<today()).length;
+  c.innerHTML=[
+    {icon:"⏳",val:pendentes,lbl:"Pendentes"},
+    {icon:"✅",val:finalizados,lbl:"Finalizados"},
+    {icon:"⚠️",val:atrasados,lbl:"Atrasados"},
+    {icon:"🩺",val:visA.length,lbl:"Total"}
+  ].map(k=>`<div class="kpi"><div style="font-size:1rem;margin-bottom:5px">${k.icon}</div><div class="kpi-val" style="font-size:1.7rem">${esc(String(k.val))}</div><div class="kpi-lbl">${esc(k.lbl)}</div></div>`).join("");
+}
+
+// ── AVISO DE 10 DIAS ANTES DO TÉRMINO (todos os colaboradores do DP) ──
+let afastDeadlineCheckInterval=null;
+let afastDeadlinePopupVisible=false;
+let afastDeadlineSnoozedUntil=0;
+
+function getAfastDeadlineAlerts(){
+  const groups={atrasado:[],prox:[]};
+  if(!user)return groups;
+  const hoje=today();
+  (afastamentosDp||[]).forEach(a=>{
+    if(a.finalizado||!a.termino)return;
+    if(a.termino<hoje)groups.atrasado.push(a);
+    else if(a.termino<=addDaysToDate(hoje,10))groups.prox.push(a);
+  });
+  return groups;
+}
+
+function renderAfastDeadlinePopupList(groups){
+  const list=document.getElementById("afastDeadlinePopupList");if(!list)return;
+  const section=(items,label,colorVar)=>{
+    if(!items.length)return"";
+    return`<div style="font-size:.62rem;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px;">${label}</div>`+
+      items.map(a=>{
+        const emp=getEmp(a.emp);
+        return`<div class="deadline-item" data-afastid="${a.id}">
+          <div style="font-weight:600;font-size:.78rem;color:var(--text)">${esc(a.colaboradora)} <span style="color:var(--text2);font-weight:400">(${esc(emp.label)})</span></div>
+          <div style="font-size:.66rem;color:${colorVar};margin-top:2px">Término ${fmtD(a.termino)}</div>
+        </div>`;
+      }).join("");
+  };
+  list.innerHTML=section(groups.atrasado,"⚠️ Vencidos","var(--urg)")+section(groups.prox,"⏰ Vencendo em até 10 dias","var(--imp)");
+  list.querySelectorAll(".deadline-item").forEach(el=>{
+    el.addEventListener("click",()=>{
+      document.querySelector('[data-tab="afastamentos"]')?.click();
+      const a=afastamentosDp.find(x=>x.id===el.dataset.afastid);
+      const canEdit=a&&(isAdmin||a.createdBy===user?.uid);
+      if(canEdit)setTimeout(()=>openAfastModal(el.dataset.afastid),150);
+      document.getElementById("afastDeadlinePopup").style.display="none";
+      afastDeadlinePopupVisible=false;
+    });
+  });
+}
+
+function updateAfastDeadlinePopup(){
+  const popup=document.getElementById("afastDeadlinePopup");if(!popup||!user)return;
+  if(isNotifMuted()){popup.style.display="none";afastDeadlinePopupVisible=false;return;}
+  const groups=getAfastDeadlineAlerts();
+  const total=groups.atrasado.length+groups.prox.length;
+  if(!total){popup.style.display="none";afastDeadlinePopupVisible=false;return;}
+  if(afastDeadlinePopupVisible){
+    renderAfastDeadlinePopupList(groups);
+    const countEl=document.getElementById("afastDeadlinePopupCount");if(countEl)countEl.textContent=total;
+    return;
+  }
+  if(Date.now()<afastDeadlineSnoozedUntil)return;
+  renderAfastDeadlinePopupList(groups);
+  const countEl=document.getElementById("afastDeadlinePopupCount");if(countEl)countEl.textContent=total;
+  popup.style.display="block";
+  afastDeadlinePopupVisible=true;
+  (groups.atrasado.length?soundDegHigh:soundDegLow)();
+}
+
+function startAfastDeadlineChecks(){
+  updateAfastDeadlinePopup();
+  afastDeadlineCheckInterval=setInterval(updateAfastDeadlinePopup,60*1000);
+}
+function stopAfastDeadlineChecks(){
+  clearInterval(afastDeadlineCheckInterval);
+  afastDeadlineCheckInterval=null;
+  afastDeadlinePopupVisible=false;
+  afastDeadlineSnoozedUntil=0;
+  const popup=document.getElementById("afastDeadlinePopup");
+  if(popup)popup.style.display="none";
+}
+document.getElementById("btnCloseAfastDeadline")?.addEventListener("click",()=>{
+  document.getElementById("afastDeadlinePopup").style.display="none";
+  afastDeadlinePopupVisible=false;
+  afastDeadlineSnoozedUntil=Date.now()+3*60*60*1000; // soneca 3h
+});
+
+// ── EXPORTAR / IMPORTAR EXCEL DE AFASTAMENTOS ──
+function getAfastExportRows(){
+  let visA=afastamentosDp.filter(a=>isAdmin||!isTaskAdminOnly({emp:[a.emp]}));
+  if(afastEmpFilter!=="all")visA=visA.filter(a=>a.emp===afastEmpFilter);
+  if(afastStatusFilter==="pendente")visA=visA.filter(a=>!a.finalizado);
+  else if(afastStatusFilter==="finalizado")visA=visA.filter(a=>a.finalizado);
+  return visA.map(a=>{
+    const emp=getEmp(a.emp);
+    const filObj=filiais.find(f=>f.id===a.filial);
+    return{
+      Empresa:emp.label,
+      Filial:filObj?filObj.label:"",
+      Colaboradora:a.colaboradora,
+      "Motivo do Afastamento":a.motivo||"",
+      CID:a.cid||"",
+      Inicio:a.inicio?fmtD(a.inicio):"",
+      Termino:a.termino?fmtD(a.termino):"",
+      "Exame de Retorno Medico do Trabalho":a.exameRetorno?fmtD(a.exameRetorno):"",
+      "Prorrogacao do Afastamento":a.prorrogacao?("SIM"+(a.prorrogacaoData?" - "+fmtD(a.prorrogacaoData):"")):"NÃO",
+      Observacoes:a.observacoes||"",
+      Status:a.finalizado?"FINALIZADO":"PENDENTE"
+    };
+  });
+}
+document.getElementById("btnExportAfast")?.addEventListener("click",()=>{
+  const rows=getAfastExportRows();
+  if(!rows.length){alert("Nenhum afastamento encontrado com esses filtros.");return;}
+  const ws=window.XLSX.utils.json_to_sheet(rows);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Afastamentos");
+  window.XLSX.writeFile(wb,`afastamentos_central_dias_${today()}.xlsx`);
+});
+
+document.getElementById("btnImportAfastTrigger")?.addEventListener("click",()=>document.getElementById("importAfastFile").click());
+
+function findExistingAfast(colaboradora,empId,inicio){
+  return afastamentosDp.find(a=>
+    (a.colaboradora||"").trim().toUpperCase()===(colaboradora||"").trim().toUpperCase()&&
+    a.emp===empId&&a.inicio===inicio
+  );
+}
+
+async function processAfastImportRows(rowsBySheet){
+  let novos=0,ignorados=0,semEmpresa=0;
+  const empByLabel={};
+  empresas.forEach(em=>{empByLabel[em.label.trim().toUpperCase()]=em.id;});
+  const parseDate=v=>{
+    if(!v||v==="-")return"";
+    if(v instanceof Date)return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+    const s=v.toString().trim();
+    const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(m)return`${m[3]}-${m[2]}-${m[1]}`;
+    return"";
+  };
+  const parsedRows=[];
+  for(const rows of rowsBySheet){
+    for(const row of rows){
+      const instRaw=getRowField(row,"Empresa","Instituicao","Instituição").trim();
+      const colaboradora=getRowField(row,"Colaboradora","Colaborador").trim();
+      if(!instRaw||!colaboradora){ignorados++;continue;}
+      const empId=empByLabel[instRaw.toUpperCase()];
+      if(!empId){semEmpresa++;continue;}
+      const filialRaw=getRowField(row,"Filial").trim();
+      let filialId="";
+      if(filialRaw){
+        const filObj=filiais.find(f=>f.empId===empId&&f.label.trim().toUpperCase()===filialRaw.toUpperCase());
+        filialId=filObj?filObj.id:"";
+      }
+      const motivo=getRowField(row,"Motivo do Afastamento","Motivo").trim();
+      const cid=getRowField(row,"CID").trim();
+      const inicio=parseDate(getRowField(row,"Inicio","Início"));
+      const termino=parseDate(getRowField(row,"Termino","Término"));
+      if(!inicio||!termino){ignorados++;continue;}
+      const exameRetorno=parseDate(getRowField(row,"Exame de Retorno Medico do Trabalho","Exame de Retorno Médico do Trabalho","Exame de Retorno"));
+      const prorrogRaw=getRowField(row,"Prorrogacao do Afastamento","Prorrogação do Afastamento","Prorrogacao").trim().toUpperCase();
+      const prorrogacao=prorrogRaw.startsWith("SIM");
+      let prorrogacaoData="";
+      const pm=prorrogRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if(pm)prorrogacaoData=`${pm[3]}-${pm[2]}-${pm[1]}`;
+      const observacoes=getRowField(row,"Observacoes","Observações").trim();
+      const statusRaw=getRowField(row,"Status").trim().toUpperCase();
+      const finalizado=statusRaw.includes("FINALIZ");
+      const data={
+        emp:empId,filial:filialId,colaboradora,motivo,cid,inicio,termino,exameRetorno,
+        prorrogacao,prorrogacaoData,observacoes,finalizado,
+        createdBy:user.uid,createdAt:serverTimestamp()
+      };
+      const existing=findExistingAfast(colaboradora,empId,inicio);
+      parsedRows.push({data,existing});
+    }
+  }
+  const duplicates=parsedRows.filter(r=>r.existing);
+  const newOnes=parsedRows.filter(r=>!r.existing);
+
+  const finish=async(action)=>{
+    for(const r of newOnes){
+      try{await addDoc(collection(db,"afastamentos_dp"),r.data);novos++;}catch(e){}
+    }
+    if(action==="overwrite"){
+      for(const r of duplicates){
+        try{const{createdAt,...rest}=r.data;await updateDoc(doc(db,"afastamentos_dp",r.existing.id),rest);}catch(e){}
+      }
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} afastamento(s) novo(s) importado(s)\n${action==="overwrite"?`🔄 ${duplicates.length} afastamento(s) já existente(s) foram atualizados\n`:duplicates.length?`⏭️ ${duplicates.length} afastamento(s) já existente(s) foram ignorados (sem alteração)\n`:""}${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de empresa não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem colaboradora, empresa, início ou término preenchidos`:""}`);
+  };
+
+  if(duplicates.length){
+    const ov=document.createElement("div");
+    ov.className="modal-ov open";
+    ov.innerHTML=`<div class="modal" style="max-width:420px">
+      <h2>⚠️ Afastamentos já existentes</h2>
+      <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">Encontramos <strong>${duplicates.length}</strong> linha${duplicates.length!==1?"s":""} desta planilha que já ${duplicates.length!==1?"existem":"existe"} no sistema (mesma colaboradora, empresa e data de início). ${newOnes.length} linha${newOnes.length!==1?"s são novas e serão":" é nova e será"} importada${newOnes.length!==1?"s":""} normalmente. O que fazer com ${duplicates.length!==1?"os duplicados":"o duplicado"}?</p>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnAfastDupSkip">⏭️ Ignorar duplicados</button>
+        <button class="btn-save-m" id="btnAfastDupOverwrite">🔄 Substituir dados</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("#btnAfastDupSkip").addEventListener("click",async()=>{ov.remove();await finish("skip");});
+    ov.querySelector("#btnAfastDupOverwrite").addEventListener("click",async()=>{ov.remove();await finish("overwrite");});
+  }else{
+    await finish("skip");
+  }
+}
+
+document.getElementById("importAfastFile")?.addEventListener("change",async e=>{
+  const file=e.target.files[0];
+  e.target.value="";
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=window.XLSX.read(buf,{type:"array",cellDates:true});
+    const rowsBySheet=wb.SheetNames.map(sn=>window.XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""}));
+    await processAfastImportRows(rowsBySheet);
+  }catch(err){alert("Erro ao importar: "+translateErr(err));}
+});
+
+// ── COLAR (Ctrl+V) DIRETO DO EXCEL NA ABA AFASTAMENTOS ──
+document.addEventListener("paste",async e=>{
+  const activeView=document.querySelector(".view.active");
+  if(!activeView||activeView.id!=="view-afastamentos")return;
+  if(["INPUT","TEXTAREA"].includes(e.target.tagName)||e.target.isContentEditable)return;
+  const text=e.clipboardData?.getData("text/plain")||"";
+  if(!text||!text.includes("\t"))return;
+  e.preventDefault();
+  const rows=parseTSVToRows(text);
+  if(!rows.length){alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (Empresa, Colaboradora, etc.) e as linhas de dados.");return;}
+  if(!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como afastamentos?`))return;
+  await processAfastImportRows([rows]);
+});
+
 // ══════════════ ABA PROCESSOS (27/08/2026) ══════════════
 const DEF_PROCESSOS_DP=[
   {key:"admissao",icone:"📥",titulo:"Admissão",
@@ -5054,6 +5616,7 @@ function degFlagBtn(d,field,label,canEdit){
 
 function buildDegCard(d){
   const canEdit=isAdmin||d.createdBy===user?.uid;
+  const canFlag=true; // 13/09/2026: qualquer colaborador cadastrado no DP pode marcar os 4 selos, não só quem criou/importou o desligamento
   const overdue=d.pagamento==="pendente"&&d.vencimento&&d.vencimento<today();
   const div=document.createElement("div");
   div.className=`task${overdue?" overdue":""}`;
@@ -5064,10 +5627,10 @@ function buildDegCard(d){
       <div class="t-meta">
         <span class="tag" style="background:${d.pagamento==="realizado"?"rgba(76,175,125,.16)":"rgba(224,92,92,.16)"};color:${d.pagamento==="realizado"?"#5fdb9c":"#ff8a8a"}">${d.pagamento==="realizado"?"✅ Realizado":"⏳ Pendente"}</span>
         ${overdue?`<span class="tag overdue-badge">⚠️ Vencido</span>`:""}
-        ${degFlagBtn(d,"feito","Feito",canEdit)}
-        ${degFlagBtn(d,"confLeo","Conferência Leo",canEdit)}
-        ${degFlagBtn(d,"enviado","Enviado",canEdit)}
-        ${degFlagBtn(d,"homologado","Homologado",canEdit)}
+        ${degFlagBtn(d,"feito","Feito",canFlag)}
+        ${degFlagBtn(d,"confLeo","Conferência Leo",canFlag)}
+        ${degFlagBtn(d,"enviado","Enviado",canFlag)}
+        ${degFlagBtn(d,"homologado","Homologado",canFlag)}
         ${d.inicio?`<span class="tag" style="background:var(--s3);color:var(--text2)">Início ${fmtD(d.inicio)}</span>`:""}
         <span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(d.termino)}</span>
         <span class="tag" style="background:var(--s3);color:var(--text2)">Vencimento ${fmtD(d.vencimento)}</span>
@@ -5091,7 +5654,7 @@ function buildDegCard(d){
 
 async function toggleDegFlag(id,field){
   const d=desligamentos.find(x=>x.id===id);if(!d)return;
-  if(!(isAdmin||d.createdBy===user?.uid))return; // só quem cadastrou o desligamento ou o Admin
+  // 13/09/2026: qualquer colaborador cadastrado no DP pode marcar os selos (antes só quem cadastrou o desligamento ou o Admin)
   const newVal=!d[field];
   const updates={[field]:newVal};
   const feito=field==="feito"?newVal:!!d.feito;
@@ -5538,6 +6101,17 @@ async function collectBackupData(periodo){
       Status:PEND_STATUS_OPTIONS.find(s=>s.v===p.status)?.l||p.status||"",
       Concluida:p.concluida?"SIM":"NÃO",
       CriadoPor:members.find(m=>m.id===p.createdBy)?.name||""};
+  }));
+
+  push("Afastamentos",afastamentosDp.filter(a=>inPeriod(a.createdAt,cutoffMs)).map(a=>{
+    const emp=getEmp(a.emp);
+    const filObj=filiais.find(f=>f.id===a.filial);
+    return{Empresa:emp.label,Filial:filObj?filObj.label:"",Colaboradora:a.colaboradora,
+      Motivo:a.motivo||"",CID:a.cid||"",Inicio:a.inicio?fmtD(a.inicio):"",Termino:a.termino?fmtD(a.termino):"",
+      ExameRetorno:a.exameRetorno?fmtD(a.exameRetorno):"",
+      Prorrogacao:a.prorrogacao?("SIM"+(a.prorrogacaoData?" - "+fmtD(a.prorrogacaoData):"")):"NÃO",
+      Observacoes:a.observacoes||"",Status:a.finalizado?"FINALIZADO":"PENDENTE",
+      CriadoPor:members.find(m=>m.id===a.createdBy)?.name||""};
   }));
 
   try{
