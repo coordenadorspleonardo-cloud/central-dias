@@ -133,6 +133,10 @@ let confirmingDeleteId = null;
 let copyingId = null;
 let editingId = null;
 let editingDraft = "";
+// 24/09/2026: prazo por tarefa — seleção múltipla pra aplicar a mesma data em lote, e edição individual
+let selectMode = false;
+let selectedIds = new Set();
+let editingPrazoId = null;
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -162,6 +166,25 @@ function fmtDT(ts) {
   if (isNaN(d.getTime())) return "";
   const p = n => String(n).padStart(2, "0");
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtPrazoShort(ymd) {
+  const [y, m, d] = ymd.split("-");
+  return `${d}/${m}`;
+}
+// 24/09/2026: selo de urgência do prazo — mesmo padrão visual (Vencido/Vence hoje/Vence em N dias)
+// já usado em Desligamentos/Certificados/Processos, reaproveitando as CSS vars globais --urg/--imp/--nor.
+function prazoBadge(prazo, done) {
+  if (!prazo) return "";
+  if (done) return `<span class="fech-prazo fech-prazo-ok">📅 até ${esc(fmtPrazoShort(prazo))}</span>`;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const alvo = new Date(prazo + "T00:00:00");
+  const diffDias = Math.round((alvo - hoje) / 86400000);
+  let cls, txt;
+  if (diffDias < 0) { cls = "urg"; txt = `Vencido — era ${fmtPrazoShort(prazo)}`; }
+  else if (diffDias === 0) { cls = "imp"; txt = `Vence hoje`; }
+  else if (diffDias <= 3) { cls = "imp"; txt = `Vence em ${diffDias}d (${fmtPrazoShort(prazo)})`; }
+  else { cls = "nor"; txt = `Até ${fmtPrazoShort(prazo)}`; }
+  return `<span class="fech-prazo fech-prazo-${cls}">📅 ${esc(txt)}</span>`;
 }
 function getCollapsed() {
   try {
@@ -227,6 +250,16 @@ function ensureStyles() {
 #fechRoot .fech-btn.primary{background:var(--accent);border-color:var(--accent);color:#0f0f13;}
 #fechRoot .fech-btn.on{background:var(--accent2);border-color:var(--accent2);color:#fff;}
 #fechRoot .fech-chk{display:flex;align-items:center;gap:6px;font-size:.74rem;color:var(--text2);cursor:pointer;}
+#fechRoot .fech-prazo{display:inline-block;font-size:.64rem;font-weight:600;border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:middle;white-space:nowrap;}
+#fechRoot .fech-prazo-urg{background:color-mix(in srgb, var(--urg) 20%, transparent);color:var(--urg);}
+#fechRoot .fech-prazo-imp{background:color-mix(in srgb, var(--imp) 20%, transparent);color:var(--imp);}
+#fechRoot .fech-prazo-nor{background:color-mix(in srgb, var(--nor) 20%, transparent);color:var(--nor);}
+#fechRoot .fech-prazo-ok{background:var(--s3);color:var(--text3);}
+#fechRoot .fech-selchk{width:16px;height:16px;margin-top:2px;accent-color:var(--accent2);cursor:pointer;flex-shrink:0;}
+#fechRoot .fech-bulkbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--s2);border:1px solid var(--accent2);border-radius:10px;padding:10px 12px;}
+#fechRoot .fech-bulkbar .cnt{font-size:.76rem;color:var(--text);font-weight:600;}
+#fechRoot .fech-bulkbar input[type=date]{background:var(--s3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:inherit;font-size:.76rem;padding:6px 9px;}
+#fechRoot .fech-prazoinp{background:var(--s3);border:1px solid var(--accent2);border-radius:6px;color:var(--text);font-family:inherit;font-size:.74rem;padding:4px 7px;}
 `;
   document.head.appendChild(style);
 }
@@ -353,6 +386,23 @@ async function copyTask(id, destCompany) {
   } catch (e) { alert("Não foi possível copiar a tarefa."); }
 }
 
+// 24/09/2026: prazo — edição individual (um único doc) e em lote (writeBatch, mesmo padrão já usado
+// pra semear tarefas/copiar competência — evita N gravações separadas quando são várias tarefas de uma vez)
+async function setPrazoSingle(id, prazoOuNull) {
+  const { db, doc, updateDoc } = ctx;
+  try { await updateDoc(doc(db, COLLECTION, id), { prazo: prazoOuNull || null }); } catch (e) {}
+}
+
+async function setPrazoBulk(ids, prazoOuNull) {
+  if (!ids.length) return;
+  const { db, doc, writeBatch } = ctx;
+  try {
+    const batch = writeBatch(db);
+    ids.forEach(id => batch.update(doc(db, COLLECTION, id), { prazo: prazoOuNull || null }));
+    await batch.commit();
+  } catch (e) { alert("Não foi possível aplicar o prazo em todas as tarefas selecionadas."); }
+}
+
 async function copyFromCompetencia(origem) {
   const { db, collection, query, where, getDocs, writeBatch, doc, serverTimestamp } = ctx;
   let origemDocs = [];
@@ -406,16 +456,28 @@ function render() {
     <span class="filter-label">Equipe</span>
     <button class="fech-btn ${filterEquipe === "all" ? "on" : ""}" data-action="filter-equipe" data-val="all">Todas as equipes</button>
     ${config.equipes.map(eq => `<button class="fech-btn ${String(filterEquipe) === String(eq.n) ? "on" : ""}" data-action="filter-equipe" data-val="${eq.n}">${esc(eq.nome)}</button>`).join("")}
-    <label class="fech-chk" style="margin-left:auto">
+    <button class="fech-btn ${selectMode ? "on" : ""}" data-action="toggle-selectmode" style="margin-left:auto">🗓️ ${selectMode ? "Sair da seleção" : "Definir prazos em lote"}</button>
+    <label class="fech-chk">
       <input type="checkbox" data-action="toggle-hide-done" ${hideDone ? "checked" : ""}> Ocultar concluídas
     </label>
   </div>`;
 
+  if (selectMode) {
+    html += `<div class="fech-bulkbar">
+      <span class="cnt">${selectedIds.size} tarefa(s) selecionada(s)</span>
+      <input type="date" id="fechBulkDate">
+      <button class="fech-btn primary" data-action="bulk-apply-prazo">Aplicar prazo às selecionadas</button>
+      <button class="fech-btn" data-action="bulk-clear-prazo">Remover prazo das selecionadas</button>
+      <button class="fech-btn" data-action="select-clear">Limpar seleção</button>
+      <span style="font-size:.66rem;color:var(--text2)">Marque as tarefas na lista abaixo (dentro de uma ou mais empresas), escolha a data e clique em Aplicar.</span>
+    </div>`;
+  }
+
   if (!total) {
     html += `<div class="fech-empty">Nenhuma tarefa cadastrada pra ${esc(fmtCompetencia(competencia))} ainda.`;
-    if (isAdmin) {
-      html += ` <button class="fech-btn primary" data-action="copy-prev" style="margin-top:8px">📋 Copiar tarefas de ${esc(fmtCompetencia(prevYYYYMM(competencia)))}</button>`;
-    }
+    // 24/09/2026: aberto pra qualquer colaborador do DP, não só Admin — mesmo pedido do Leonardo
+    // que abriu criar/renomear/reordenar/copiar/excluir tarefa (ver renderTaskRow/renderCompanyCard).
+    html += ` <button class="fech-btn primary" data-action="copy-prev" style="margin-top:8px">📋 Copiar tarefas de ${esc(fmtCompetencia(prevYYYYMM(competencia)))}</button>`;
     html += `</div>`;
   }
 
@@ -467,12 +529,11 @@ function renderCompanyCard(emp, isAdmin) {
     html += renderTaskRow(t, emp, isAdmin);
   });
 
-  if (isAdmin) {
-    html += `<div class="fech-addrow">
-      <input type="text" placeholder="Nova tarefa para ${esc(emp.nome)}" data-newtask="${esc(emp.id)}">
-      <button class="fech-btn" data-action="add-task" data-val="${esc(emp.id)}">Adicionar</button>
-    </div>`;
-  }
+  // 24/09/2026: criar tarefa aberto a qualquer colaborador do DP, não só Admin (pedido do Leonardo)
+  html += `<div class="fech-addrow">
+    <input type="text" placeholder="Nova tarefa para ${esc(emp.nome)}" data-newtask="${esc(emp.id)}">
+    <button class="fech-btn" data-action="add-task" data-val="${esc(emp.id)}">Adicionar</button>
+  </div>`;
 
   html += `</div></div>`;
   return html;
@@ -482,13 +543,14 @@ function renderTaskRow(t, emp, isAdmin) {
   const isEditing = editingId === t.id;
   const isCopying = copyingId === t.id;
   const isDeleting = confirmingDeleteId === t.id;
+  const isSettingPrazo = editingPrazoId === t.id;
   const nome = t.doneByName || (t.doneBy ? (window && ctx.getMembers().find(m => m.id === t.doneBy)?.name) : "") || "";
 
   let txtHtml;
   if (isEditing) {
     txtHtml = `<input type="text" class="fech-renameinp" data-renameinp="${esc(t.id)}" value="${esc(t.text)}">`;
   } else {
-    txtHtml = `<span class="fech-task-txt">${esc(t.text)}</span>${t.tag === "geral" ? `<span class="fech-tag">Todas as empresas</span>` : ""}`;
+    txtHtml = `<span class="fech-task-txt">${esc(t.text)}</span>${t.tag === "geral" ? `<span class="fech-tag">Todas as empresas</span>` : ""}${prazoBadge(t.prazo, t.done)}`;
   }
 
   let metaHtml = "";
@@ -497,7 +559,8 @@ function renderTaskRow(t, emp, isAdmin) {
   }
 
   let actionsHtml = "";
-  if (isAdmin && !isEditing) {
+  // 24/09/2026: renomear/copiar/excluir/prazo abertos a qualquer colaborador do DP, não só Admin (pedido do Leonardo)
+  if (!isEditing) {
     if (isDeleting) {
       actionsHtml = `<div class="fech-delbox">Excluir esta tarefa?
         <button class="fech-btn" data-action="delete-confirm" data-val="${esc(t.id)}">Sim</button>
@@ -513,15 +576,24 @@ function renderTaskRow(t, emp, isAdmin) {
         <button class="fech-btn" data-action="copy-confirm" data-val="${esc(t.id)}">Copiar</button>
         <button class="fech-btn" data-action="copy-cancel">Cancelar</button>
       </div>`;
+    } else if (isSettingPrazo) {
+      actionsHtml = `<div class="fech-copybox">
+        <input type="date" class="fech-prazoinp" data-prazoinp="${esc(t.id)}" value="${esc(t.prazo || "")}">
+        <button class="fech-btn" data-action="prazo-save" data-val="${esc(t.id)}">Salvar</button>
+        <button class="fech-btn" data-action="prazo-clear" data-val="${esc(t.id)}">Remover prazo</button>
+        <button class="fech-btn" data-action="prazo-cancel">Cancelar</button>
+      </div>`;
     }
   }
 
   let btnsHtml = "";
-  if (isAdmin && !isEditing && !isDeleting && !isCopying) {
+  // 24/09/2026: reordenar/renomear/copiar/excluir/prazo abertos a qualquer colaborador do DP, não só Admin
+  if (!isEditing && !isDeleting && !isCopying && !isSettingPrazo) {
     btnsHtml = `<div class="fech-task-actions">
       <button class="fech-ibtn" data-action="reorder-up" data-val="${esc(t.id)}" title="Mover pra cima">↑</button>
       <button class="fech-ibtn" data-action="reorder-down" data-val="${esc(t.id)}" title="Mover pra baixo">↓</button>
       <button class="fech-ibtn" data-action="rename-start" data-val="${esc(t.id)}" title="Renomear">✎</button>
+      <button class="fech-ibtn" data-action="prazo-start" data-val="${esc(t.id)}" title="Definir prazo">📅</button>
       <button class="fech-ibtn" data-action="copy-start" data-val="${esc(t.id)}" title="Copiar pra outra empresa">⧉</button>
       <button class="fech-ibtn" data-action="delete-start" data-val="${esc(t.id)}" title="Excluir">🗑</button>
     </div>`;
@@ -532,8 +604,14 @@ function renderTaskRow(t, emp, isAdmin) {
     </div>`;
   }
 
+  // 24/09/2026: em modo seleção (prazo em lote), troca a caixinha de "feito" por uma de seleção —
+  // evita marcar a tarefa como concluída sem querer enquanto se está só escolhendo o grupo pro prazo.
+  const checkboxHtml = selectMode
+    ? `<input type="checkbox" class="fech-selchk" data-action="toggle-select" data-val="${esc(t.id)}" ${selectedIds.has(t.id) ? "checked" : ""}>`
+    : `<input type="checkbox" data-action="toggle-done" data-val="${esc(t.id)}" ${t.done ? "checked" : ""} ${isEditing ? "disabled" : ""}>`;
+
   return `<div class="fech-task ${t.done ? "done" : ""}" data-taskid="${esc(t.id)}">
-    <input type="checkbox" data-action="toggle-done" data-val="${esc(t.id)}" ${t.done ? "checked" : ""} ${isEditing ? "disabled" : ""}>
+    ${checkboxHtml}
     <div class="fech-task-main">
       ${txtHtml}
       ${metaHtml}
@@ -563,7 +641,7 @@ function wireEvents() {
       if (inp) { const v = inp.value; inp.value = ""; await addTask(val, v); }
       return;
     }
-    if (action === "rename-start") { editingId = val; copyingId = null; confirmingDeleteId = null; render();
+    if (action === "rename-start") { editingId = val; copyingId = null; confirmingDeleteId = null; editingPrazoId = null; render();
       const inp = mountEl.querySelector(`[data-renameinp="${CSS.escape(val)}"]`); if (inp) { inp.focus(); inp.select(); } return; }
     if (action === "rename-cancel") { editingId = null; render(); return; }
     if (action === "rename-save") {
@@ -574,7 +652,7 @@ function wireEvents() {
     }
     if (action === "reorder-up") { await reorder(val, -1); return; }
     if (action === "reorder-down") { await reorder(val, 1); return; }
-    if (action === "copy-start") { copyingId = val; editingId = null; confirmingDeleteId = null; render(); return; }
+    if (action === "copy-start") { copyingId = val; editingId = null; confirmingDeleteId = null; editingPrazoId = null; render(); return; }
     if (action === "copy-cancel") { copyingId = null; render(); return; }
     if (action === "copy-confirm") {
       const sel = mountEl.querySelector(`[data-copyselect="${CSS.escape(val)}"]`);
@@ -583,16 +661,57 @@ function wireEvents() {
       if (dest) await copyTask(val, dest);
       return;
     }
-    if (action === "delete-start") { confirmingDeleteId = val; editingId = null; copyingId = null; render(); return; }
+    if (action === "delete-start") { confirmingDeleteId = val; editingId = null; copyingId = null; editingPrazoId = null; render(); return; }
     if (action === "delete-cancel") { confirmingDeleteId = null; render(); return; }
     if (action === "delete-confirm") { confirmingDeleteId = null; await deleteTask(val); return; }
     if (action === "copy-prev") { await copyFromCompetencia(prevYYYYMM(competencia)); return; }
+
+    // ---- prazo (24/09/2026) — edição individual ----
+    if (action === "prazo-start") { editingPrazoId = val; editingId = null; copyingId = null; confirmingDeleteId = null; render();
+      const inp = mountEl.querySelector(`[data-prazoinp="${CSS.escape(val)}"]`); if (inp) inp.focus(); return; }
+    if (action === "prazo-cancel") { editingPrazoId = null; render(); return; }
+    if (action === "prazo-save") {
+      const inp = mountEl.querySelector(`[data-prazoinp="${CSS.escape(val)}"]`);
+      const v = inp ? inp.value : "";
+      editingPrazoId = null;
+      await setPrazoSingle(val, v || null); return;
+    }
+    if (action === "prazo-clear") { editingPrazoId = null; await setPrazoSingle(val, null); return; }
+
+    // ---- prazo (24/09/2026) — seleção múltipla + aplicar em lote ----
+    if (action === "toggle-selectmode") {
+      selectMode = !selectMode;
+      selectedIds.clear();
+      render(); return;
+    }
+    if (action === "toggle-select") {
+      if (selectedIds.has(val)) selectedIds.delete(val); else selectedIds.add(val);
+      render(); return;
+    }
+    if (action === "select-clear") { selectedIds.clear(); render(); return; }
+    if (action === "bulk-apply-prazo") {
+      const inp = document.getElementById("fechBulkDate");
+      const v = inp ? inp.value : "";
+      if (!v) { alert("Escolha uma data antes de aplicar."); return; }
+      if (!selectedIds.size) { alert("Selecione ao menos uma tarefa."); return; }
+      const ids = [...selectedIds];
+      selectedIds.clear();
+      await setPrazoBulk(ids, v);
+      return;
+    }
+    if (action === "bulk-clear-prazo") {
+      if (!selectedIds.size) { alert("Selecione ao menos uma tarefa."); return; }
+      const ids = [...selectedIds];
+      selectedIds.clear();
+      await setPrazoBulk(ids, null);
+      return;
+    }
   });
 
   mountEl.addEventListener("change", e => {
     if (e.target.matches('[data-action="change-competencia"]')) {
       const v = e.target.value;
-      if (v && /^\d{4}-\d{2}$/.test(v)) { competencia = v; subscribeTasks(); render(); }
+      if (v && /^\d{4}-\d{2}$/.test(v)) { competencia = v; selectedIds.clear(); subscribeTasks(); render(); }
       return;
     }
     if (e.target.matches('[data-action="toggle-hide-done"]')) { hideDone = e.target.checked; render(); return; }
@@ -602,6 +721,10 @@ function wireEvents() {
     if (e.target.matches("[data-renameinp]")) {
       if (e.key === "Enter") { e.target.closest(".fech-task").querySelector('[data-action="rename-save"]')?.click(); }
       if (e.key === "Escape") { editingId = null; render(); }
+    }
+    if (e.target.matches("[data-prazoinp]")) {
+      if (e.key === "Enter") { e.target.closest(".fech-task").querySelector('[data-action="prazo-save"]')?.click(); }
+      if (e.key === "Escape") { editingPrazoId = null; render(); }
     }
   });
 }
