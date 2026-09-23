@@ -29,6 +29,34 @@ const DEFAULT_CONFIG = {
   ]
 };
 
+// 24/09/2026: cor padrão por empresa (pedido do Leonardo — poder colorir cada empresa do
+// Fechamento da Folha, não só a cor de equipe). Fica separado do config.empresas porque instalações
+// antigas já têm config/fechamento_dp semeado no Firestore sem o campo "color" — este mapa cobre
+// esse caso e também as empresas "cias"/"construindo", que nem existem no cadastro geral de empresas
+// do app (config/empresas), só aqui dentro do Fechamento.
+const DEFAULT_COLORS = {
+  amasp: "#98A7F2",
+  cias: "#7C93F0",
+  construindo: "#6B7FD9",
+  cedap: "#E3A858",
+  casa: "#D98F4E",
+  jardim: "#C97B3D"
+};
+
+// ---- cor por empresa (pessoal, salva no navegador — mesmo padrão de getCollapsed/setCollapsed) ----
+function getFechColorOverrides() {
+  try { return JSON.parse(localStorage.getItem("cdFechCores") || "{}"); } catch (e) { return {}; }
+}
+function setFechColorOverride(id, hex) {
+  const cores = getFechColorOverrides();
+  if (hex) cores[id] = hex; else delete cores[id];
+  try { localStorage.setItem("cdFechCores", JSON.stringify(cores)); } catch (e) {}
+}
+function getFechColor(emp) {
+  const overrides = getFechColorOverrides();
+  return overrides[emp.id] || emp.color || DEFAULT_COLORS[emp.id] || (String(emp.equipe) === "1" ? "#98A7F2" : "#E3A858");
+}
+
 // ---- tarefas padrão da competência 09/2026 (semeadas automaticamente uma única vez) ----
 const SEED_COMPETENCIA = "2026-09";
 const SEED_TASKS = [
@@ -217,13 +245,16 @@ function ensureStyles() {
 #fechRoot .fech-col-head .nome{font-weight:700;font-size:.86rem;color:var(--tc);}
 #fechRoot .fech-col-head .grupo{font-size:.7rem;color:var(--text3);}
 #fechRoot .fech-col-head .cnt{margin-left:auto;font-size:.7rem;color:var(--text2);font-variant-numeric:tabular-nums;}
-#fechRoot .fech-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+#fechRoot .fech-card{background:var(--s1);border:1px solid var(--border);border-left:4px solid var(--card-c, var(--border));border-radius:var(--r);overflow:hidden;}
 #fechRoot .fech-card-head{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none;}
 #fechRoot .fech-card-head:hover{background:var(--s2);}
 #fechRoot .fech-card-head .car{transition:transform .15s;color:var(--text3);font-size:.7rem;}
 #fechRoot .fech-card.collapsed .car{transform:rotate(-90deg);}
 #fechRoot .fech-card-head .emp{font-weight:600;font-size:.82rem;color:var(--text);flex:1;}
 #fechRoot .fech-card-head .cnt{font-size:.68rem;color:var(--text2);font-variant-numeric:tabular-nums;}
+#fechRoot .fech-colorinp{width:18px;height:18px;padding:0;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:transparent;flex:0 0 auto;}
+#fechRoot .fech-colorreset{flex:0 0 auto;font-size:.62rem;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px;line-height:1;}
+#fechRoot .fech-colorreset:hover{color:var(--text);}
 #fechRoot .fech-minibar{height:4px;background:var(--s3);border-radius:3px;overflow:hidden;margin:0 12px 10px;}
 #fechRoot .fech-minibar-fill{height:100%;background:var(--nor);transition:width .3s;}
 #fechRoot .fech-card-body{padding:0 12px 12px;}
@@ -512,10 +543,13 @@ function renderCompanyCard(emp, isAdmin) {
   const doneReal = tasksRaw.filter(t => t.company === emp.id && t.done).length;
   const pct = totalReal ? Math.round((doneReal / totalReal) * 100) : 0;
 
-  let html = `<div class="fech-card ${collapsed ? "collapsed" : ""}" data-company="${esc(emp.id)}">
+  const cor = getFechColor(emp);
+  let html = `<div class="fech-card ${collapsed ? "collapsed" : ""}" data-company="${esc(emp.id)}" style="--card-c:${esc(cor)}">
     <div class="fech-card-head" data-action="toggle-collapse" data-val="${esc(emp.id)}">
       <span class="car">▾</span>
       <span class="emp">${esc(emp.nome)}</span>
+      <input type="color" class="fech-colorinp" data-colorinp="${esc(emp.id)}" value="${esc(cor)}" title="Cor desta empresa (só pra você, salva neste navegador)">
+      <button type="button" class="fech-colorreset" data-action="reset-color" data-val="${esc(emp.id)}" title="Restaurar cor padrão">↺</button>
       <span class="cnt">${doneReal}/${totalReal}</span>
     </div>
     <div class="fech-minibar"><div class="fech-minibar-fill" style="width:${pct}%"></div></div>
@@ -624,11 +658,16 @@ function renderTaskRow(t, emp, isAdmin) {
 // ---- eventos (delegados no mountEl, registrados uma única vez) ----
 function wireEvents() {
   mountEl.addEventListener("click", async e => {
+    // 24/09/2026: o seletor de cor fica dentro do cabeçalho do card (que tem data-action="toggle-collapse"),
+    // então intercepta aqui antes de deixar o clique borbulhar e recolher/expandir o card sem querer.
+    if (e.target.closest("[data-colorinp]")) return;
+
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
     const action = btn.dataset.action;
     const val = btn.dataset.val;
 
+    if (action === "reset-color") { setFechColorOverride(val, null); render(); return; }
     if (action === "toggle-collapse") {
       const set = getCollapsed();
       if (set.has(val)) set.delete(val); else set.add(val);
@@ -715,6 +754,11 @@ function wireEvents() {
       return;
     }
     if (e.target.matches('[data-action="toggle-hide-done"]')) { hideDone = e.target.checked; render(); return; }
+    if (e.target.matches('[data-colorinp]')) {
+      setFechColorOverride(e.target.dataset.colorinp, e.target.value);
+      render();
+      return;
+    }
   });
 
   mountEl.addEventListener("keydown", e => {
