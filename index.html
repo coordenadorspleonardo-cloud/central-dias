@@ -952,6 +952,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
         <button class="fp on" data-procview="consulta">📖 Consulta</button>
         <button class="fp" data-procview="execucoes">▶️ Execuções <span id="procExecBadge" class="tbadge" style="display:none;background:var(--accent)"></span></button>
+        <button class="fp" data-procview="fechamento">🧾 Fechamento da Folha</button>
       </div>
       <div id="procConsultaWrap">
         <p style="font-size:.72rem;color:var(--text2);margin-bottom:12px">📚 Manual de processos do Departamento Pessoal — modelo padrão, válido para as 4 empresas atendidas (AMASP, Casa da Criança Feliz, CEDAP, Jardim das Princesas). <span class="admin-only-el" style="display:none">Só o Admin edita o conteúdo abaixo.</span></p>
@@ -971,6 +972,9 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
           </div>
         </div>
         <div id="procExecList"></div>
+      </div>
+      <div id="procFechamentoWrap" style="display:none">
+        <div id="fechRoot"></div>
       </div>
     </div>
     <div class="view" id="view-notas">
@@ -1128,8 +1132,9 @@ import {
 import {
   getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc,
   deleteDoc, onSnapshot, query, orderBy, where, limit, serverTimestamp,
-  increment, arrayUnion, arrayRemove, runTransaction
+  increment, arrayUnion, arrayRemove, runTransaction, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initFechamento, renderFechamento } from "./fechamento.js";
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
@@ -1138,6 +1143,7 @@ let unsubDM=null;
 let presenceInterval=null;
 let groups=[];
 let unsubGroups=null;
+let unsubFechamento=null;
 const app = initializeApp({
   apiKey:"AIzaSyAIFImaQ5ONMGLudUhQMkoPjQeMBFAbENs",
   authDomain:"gestor-dp-ad1fa.firebaseapp.com",
@@ -2046,7 +2052,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
     btn.classList.add("active");
     document.getElementById("view-"+btn.dataset.tab).classList.add("active");
     if(btn.dataset.tab==="chat")renderChat();
-    if(btn.dataset.tab==="processos"){renderProcessos();renderProcessoExecucoes();}
+    if(btn.dataset.tab==="processos"){renderProcessos();renderProcessoExecucoes();if(procViewMode==="fechamento")renderFechamento();}
   });
 });
 
@@ -2298,8 +2304,13 @@ function startListeners(){
     processoExecucoes=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderProcessoExecucoes();
   });
+
+  unsubFechamento=initFechamento({
+    db,collection,doc,addDoc,updateDoc,deleteDoc,getDoc,getDocs,setDoc,onSnapshot,query,where,serverTimestamp,writeBatch,
+    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -5413,7 +5424,9 @@ document.querySelectorAll('[data-procview]').forEach(btn=>{
     procViewMode=btn.dataset.procview;
     document.getElementById("procConsultaWrap").style.display=procViewMode==="consulta"?"":"none";
     document.getElementById("procExecucoesWrap").style.display=procViewMode==="execucoes"?"":"none";
+    document.getElementById("procFechamentoWrap").style.display=procViewMode==="fechamento"?"":"none";
     if(procViewMode==="execucoes")renderProcessoExecucoes();
+    if(procViewMode==="fechamento")renderFechamento();
   });
 });
 document.querySelectorAll('[data-procstatus]').forEach(btn=>{
