@@ -762,6 +762,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="afastamentos">🩺 Afastamentos <span class="tbadge" id="afastTabBadge" style="display:none;background:var(--imp)"></span></button>
+    <button class="tab" data-tab="admissoes">📥 Admissões <span class="tbadge" id="admissoesTabBadge" style="display:none;background:var(--nor)"></span></button>
     <button class="tab" data-tab="processos">📚 Processos</button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
@@ -948,6 +949,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div id="afastMiniDash" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px;margin-bottom:18px;"></div>
       <div id="afastList"></div>
     </div>
+    <div class="view" id="view-admissoes"><div id="admissoesRoot"></div></div>
     <div class="view" id="view-processos">
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
         <button class="fp on" data-procview="consulta">📖 Consulta</button>
@@ -1135,6 +1137,7 @@ import {
   increment, arrayUnion, arrayRemove, runTransaction, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { initFechamento, renderFechamento } from "./fechamento.js";
+import { initAdmissoes, renderAdmissoes } from "./admissoes.js";
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
@@ -1144,6 +1147,7 @@ let presenceInterval=null;
 let groups=[];
 let unsubGroups=null;
 let unsubFechamento=null;
+let unsubAdmissoes=null;
 const app = initializeApp({
   apiKey:"AIzaSyAIFImaQ5ONMGLudUhQMkoPjQeMBFAbENs",
   authDomain:"gestor-dp-ad1fa.firebaseapp.com",
@@ -2052,6 +2056,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
     btn.classList.add("active");
     document.getElementById("view-"+btn.dataset.tab).classList.add("active");
     if(btn.dataset.tab==="chat")renderChat();
+    if(btn.dataset.tab==="admissoes")renderAdmissoes();
     if(btn.dataset.tab==="processos"){renderProcessos();renderProcessoExecucoes();if(procViewMode==="fechamento")renderFechamento();}
   });
 });
@@ -2309,8 +2314,12 @@ function startListeners(){
     db,collection,doc,addDoc,updateDoc,deleteDoc,getDoc,getDocs,setDoc,onSnapshot,query,where,serverTimestamp,writeBatch,
     getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members
   });
+  unsubAdmissoes=initAdmissoes({
+    db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,query,where,serverTimestamp,
+    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members,getEmpresas:()=>empresas,getFiliais:()=>filiais
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -5069,28 +5078,33 @@ document.addEventListener("paste",async e=>{
 // ══════════════ ABA PROCESSOS (27/08/2026) ══════════════
 const DEF_PROCESSOS_DP=[
   {key:"admissao",icone:"📥",titulo:"Admissão",
-   objetivo:"Formalizar a contratação do colaborador, garantindo documentação completa, registro correto nos sistemas (Dexion e eSocial) e comunicação ao cliente dentro do prazo legal.",
+   objetivo:"Formalizar a contratação do colaborador, garantindo documentação completa, registro correto nos sistemas (Dexion/Domínio e eSocial) e comunicação ao cliente dentro do prazo legal.",
    quando:"Sempre que houver uma nova contratação em qualquer uma das empresas atendidas, a partir do recebimento da documentação do colaborador.",
-   entradas:"Documentação do colaborador (sempre por e-mail); ficha de registro quando faltar informação.",
+   entradas:"Documentação do colaborador (sempre por e-mail; Jardim das Princesas manda por WhatsApp e o Leonardo repassa por e-mail); ficha de registro quando faltar informação.",
+   // 23/09/2026: passos 3 e 7 acrescentados, e o pontosAtencao enriquecido, a partir do cruzamento
+   // com o documento que o Leonardo escreveu — ver auditoria comparacao_admissao_atestado_rescisao_23-09.md.
    passos:[
-     "Receber a documentação do colaborador sempre por e-mail. Se faltar informação, enviar a ficha de registro para preenchimento.",
+     "Receber a documentação do colaborador sempre por e-mail (Jardim das Princesas manda por WhatsApp — formalizar repassando por e-mail antes de seguir). Se faltar informação, enviar a ficha de registro para preenchimento.",
      "Bater o checklist de documentos e verificar se não está faltando nada.",
+     "Verificar se é recontratação: consultar o CPF da colaboradora no eSocial da empresa — se não aparecer nenhum registro anterior para essa empresa, não é recontratação.",
      "Conferir os documentos recebidos e esclarecer dúvidas com o responsável pela contratação.",
      "Salvar todos os documentos na rede.",
-     "Incluir a admissão no Dexion e gerar o contrato de trabalho.",
-     "Conferir o contrato de trabalho gerado.",
+     "Incluir a admissão no Dexion/Domínio e gerar o contrato de trabalho.",
+     "Conferir o contrato de trabalho gerado — ler e checar especialmente os campos preenchidos manualmente (cargo, salário, horário, carga horária, nome, estado civil, prazo/modalidade), que não são parametrizados automaticamente pelo sistema.",
      "Enviar o evento de admissão ao eSocial (S2200), até 24h antes do início das atividades.",
      "Enviar e-mail ao cliente informando início, prazo de experiência ou modalidade do contrato."
    ],
-   pontosAtencao:"Checklist antes de lançar no sistema; prazo do S2200 é até o dia anterior ao início das atividades; comunicação com o cliente sempre por e-mail.",
-   saidas:"Contrato gerado e conferido; admissão no Dexion; S2200 transmitido; documentos salvos; e-mail ao cliente.",
+   pontosAtencao:"Checklist antes de lançar no sistema; prazo do S2200 é até o dia anterior ao início das atividades; comunicação com o cliente sempre por e-mail. Particularidade por empresa: Jardim das Princesas (Rosa) manda tudo por WhatsApp — repassar por e-mail e cobrar pendências direto com ela, nunca respondendo o e-mail do Leonardo; as demais empresas já enviam direto por e-mail. Documento não impeditivo faltando: se há prazo hábil, cobrar por e-mail e, sem retorno, por WhatsApp, registrando e seguindo com a contratação; se não há prazo hábil, enviar a admissão e cobrar o documento no mesmo e-mail. Se o cliente mandar fora do prazo do S2200 e pedir para registrar mesmo assim, registrar mas formalizar por e-mail que foi fora do prazo recomendado. Recontratação recente (cerca de 1 ano) na mesma função: normalmente não se faz novo período de experiência — o contrato deve ser por prazo indeterminado.",
+   saidas:"Contrato gerado e conferido; recontratação verificada; admissão no Dexion/Domínio; S2200 transmitido; documentos salvos; e-mail ao cliente.",
    baseLabel:"Data de início do colaborador",prazoOffsetDias:-1,prazoLabel:"Enviar o S2200 até o dia anterior ao início"},
   {key:"atestados",icone:"🩺",titulo:"Atestados / Afastamentos",
    objetivo:"Registrar corretamente atestados e afastamentos, avaliar se caracterizam afastamento previdenciário e acompanhar o colaborador até o retorno.",
    quando:"Sempre que um atestado ou comunicação de afastamento for recebido.",
    entradas:"Atestado/documento médico, sempre por e-mail.",
+   // 23/09/2026: passo 1 enriquecido e pontosAtencao ampliado a partir do documento do Leonardo —
+   // ver auditoria comparacao_admissao_atestado_rescisao_23-09.md.
    passos:[
-     "Receber a documentação sempre por e-mail.",
+     "Receber a documentação sempre por e-mail — se vier por WhatsApp, formalizar pedindo o reenvio por e-mail (ou reenviando você mesmo o atestado, confirmando o recebimento por escrito).",
      "Conferir os 4 requisitos obrigatórios: tempo de afastamento, identificação do médico (nome + CRM), assinatura, legibilidade.",
      "Lançar na planilha de controle de atestados e no Dexion.",
      "Verificar se o afastamento é superior a 15 dias (previdenciário) e orientar o cliente.",
@@ -5098,25 +5112,27 @@ const DEF_PROCESSOS_DP=[
      "Se superior a 15 dias, enviar a DUT.",
      "Acompanhar o afastado e comunicar sobre o exame de retorno ao trabalho."
    ],
-   pontosAtencao:"Atestado sem os 4 requisitos não é aceito; regra dos 60 dias/CID correlato define o encaminhamento ao INSS; evento eSocial S2230 até 15 dias da data do afastamento.",
+   pontosAtencao:"Atestado sem os 4 requisitos não é aceito; regra dos 60 dias/CID correlato define o encaminhamento ao INSS; evento eSocial S2230 até 15 dias da data do afastamento. Casos de afastamento não devem esperar o fechamento da folha para serem tratados — assim que identificado, avisar a equipe e orientar a colaboradora. Atestado longo (mais de 14–15 dias) sem CID: notificar a empresa para encaminhar a colaboradora ao médico/clínica do trabalho (no CEDAP, esse contato é direto com a Leila). Declaração de horas em substituição a atestado só é aceita com identificação do médico (CRM, assinatura, legibilidade) e tempo de afastamento — a CLT não prevê abono nesses casos, mas a CCT sindical prevê quando a declaração vem completa; a maioria chega incompleta, e nesses casos o padrão é descontar.",
    saidas:"Atestado lançado; orientação ao cliente quando aplicável; DUT enviada; S2230 transmitido; acompanhamento do retorno registrado.",
    baseLabel:"Data do afastamento",prazoOffsetDias:15,prazoLabel:"Enviar o S2230 até 15 dias do afastamento"},
   {key:"rescisoes",icone:"🚪",titulo:"Rescisões / Homologações",
    objetivo:"Conduzir o desligamento do colaborador, calcular a rescisão, homologar dentro do prazo legal e entregar a documentação ao cliente.",
    quando:"Sempre que houver comunicação de desligamento.",
    entradas:"Pedido de demissão, comunicado de dispensa ou solicitação de aviso prévio, sempre por e-mail.",
+   // 23/09/2026: passos enriquecidos e pontosAtencao ampliado a partir do documento do Leonardo —
+   // ver auditoria comparacao_admissao_atestado_rescisao_23-09.md.
    passos:[
-     "Etapa 1 (conforme o tipo) — Pedido de demissão: verificar concurso público (desconto do aviso), quebra de contrato, se estava afastada.",
-     "Etapa 1 — Término de contrato: atentar à entrega do aviso na data correta.",
+     "Etapa 1 (conforme o tipo) — Pedido de demissão: ler o próprio documento (não confiar só na leitura da diretora); verificar assinatura e data (pedido sem isso já gerou perda do prazo dos 10 dias); verificar concurso público efetivo — não descontar o aviso — x contrato temporário de prefeitura — descontar normalmente; verificar quebra de contrato e se estava afastada.",
+     "Etapa 1 — Término de contrato: atentar à entrega do aviso na data correta e comunicar o término 1 dia antes do vencimento do contrato.",
      "Etapa 1 — Aviso prévio (trabalhado/indenizado): conferência de estabilidade (tempo de casa, idade, data-base sindicato, recesso de janeiro/PEIs, CAT, férias/afastamento nos últimos 30 dias, licença-maternidade) — sempre por e-mail.",
      "Etapa 1 — Outras modalidades: contatar a Coordenação.",
-     "Etapa 2 — Inserir no controle de desligamentos.",
-     "Etapa 2 — Solicitar informações para o TRCT e verificar eConsignado.",
+     "Etapa 2 — Inserir no controle de desligamentos, preferencialmente via importação de planilha (não cadastro manual, pra evitar duplicidade de registro).",
+     "Etapa 2 — Solicitar informações para o TRCT, verificar eConsignado e verificar se há desconto de vale-transporte pendente (responsabilidade da equipe conferir, não depender da diretora avisar).",
      "Etapa 2 — Lançar o TRCT e emitir extrato do FGTS.",
      "Etapa 2 — Conferência e autorização de envio do TRCT.",
      "Etapa 2 — Enviar processo de pagamento (agrupado em 1 PDF) e cobrar comprovante.",
-     "Etapa 2 — Homologar em até 10 dias da data oficial; escanear processo assinado; salvar e enviar ao cliente.",
-     "Etapa 2 — Não deixar documentação pendente (Seguro-Desemprego/assinaturas); comunicar formalmente não comparecimento."
+     "Etapa 2 — Homologar em até 10 dias da data oficial; escanear processo assinado; salvar e enviar ao cliente; após a assinatura, cobrar o exame demissional.",
+     "Etapa 2 — Enviar o requerimento de Seguro-Desemprego no mesmo dia do desligamento; solicitar sempre o e-mail da própria colaboradora para formalizar pendências; não deixar documentação pendente — comunicar por e-mail se o exame não foi feito, se não assinou a homologação ou se não compareceu."
    ],
    pontosAtencao:"Confirmar cada decisão por e-mail; seguir o checklist; homologação em até 10 dias; evento S2299 em até 10 dias do desligamento; processo final agrupado em 1 PDF.",
    saidas:"Controle de desligamentos atualizado; TRCT lançado/autorizado; pagamento enviado e comprovante cobrado; homologação e TRCT assinado salvos/enviados; S2299 transmitido; pendências resolvidas/comunicadas.",
