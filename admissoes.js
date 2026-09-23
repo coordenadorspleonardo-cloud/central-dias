@@ -241,6 +241,260 @@ async function deleteRecord(id) {
   try { await deleteDoc(doc(db, COLLECTION, id)); } catch (e) {}
 }
 
+// ---- Excel: exportar / importar / relatório por período — mesmo padrão já
+// usado em Desligamentos e Pendências (24/09/2026, a pedido do Leonardo) ----
+function getRowField(row, ...names) {
+  const keys = Object.keys(row);
+  for (const name of names) {
+    const found = keys.find(k => k.trim().toLowerCase() === name.toLowerCase());
+    if (found !== undefined) return (row[found] ?? "").toString();
+  }
+  return "";
+}
+function parseDateCell(v) {
+  if (!v || v === "-") return "";
+  if (v instanceof Date) return v.getFullYear() + "-" + String(v.getMonth() + 1).padStart(2, "0") + "-" + String(v.getDate()).padStart(2, "0");
+  const s = v.toString().trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return "";
+}
+function diffDays(a, b) {
+  return Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000);
+}
+function inferCombo(inicio, fimPeriodo1) {
+  if (!inicio || !fimPeriodo1) return "45-45";
+  const p1 = diffDays(fimPeriodo1, inicio) + 1;
+  let best = "45-45", bestDiff = Infinity;
+  Object.entries(COMBOS).forEach(([k, c]) => {
+    const d = Math.abs(c.p1 - p1);
+    if (d < bestDiff) { bestDiff = d; best = k; }
+  });
+  return best;
+}
+function findExistingAdmissao(colaborador, empId, inicio) {
+  return registros.find(r =>
+    (r.colaborador || "").trim().toUpperCase() === (colaborador || "").trim().toUpperCase() &&
+    r.emp === empId && r.inicio === inicio
+  );
+}
+function rowToExportRow(r) {
+  const emp = getEmpresa(r.emp);
+  const filObj = (ctx.getFiliais() || []).find(f => f.id === r.filial);
+  let tipoTxt = TIPO_LABELS[r.tipoContrato] || r.tipoContrato || "";
+  if (r.tipoContrato === "experiencia" && r.experienciaCombo) tipoTxt += ` (${COMBOS[r.experienciaCombo]?.label || r.experienciaCombo})`;
+  if (r.tipoContrato === "determinado" && r.determinadoMeses) tipoTxt += ` (${r.determinadoMeses}m)`;
+  return {
+    Instituicao: emp.label,
+    Filial: filObj ? filObj.label : "",
+    Colaboradora: r.colaborador || "",
+    Cargo: r.cargo || "",
+    Matricula: r.matricula || "",
+    "Matricula eSocial": r.matriculaEsocial || "",
+    "Tipo de Contrato": tipoTxt,
+    Inicio: r.inicio ? fmtDFull(r.inicio) : "",
+    Experiencia: r.fimPeriodo1 ? fmtDFull(r.fimPeriodo1) : "",
+    "Prorrogacao Experiencia": r.vencimentoContrato && r.tipoContrato !== "determinado" ? fmtDFull(r.vencimentoContrato) : "",
+    "Termino Contrato": r.vencimentoContrato && r.tipoContrato === "determinado" ? fmtDFull(r.vencimentoContrato) : "",
+    Recontratacao: r.recontratacao ? "SIM" : "NAO",
+    Concluida: r.concluido ? "SIM" : "NAO",
+    Observacao: r.observacao || ""
+  };
+}
+function getExportRows() {
+  let vis = registros;
+  if (filterEmp !== "all") vis = vis.filter(r => r.emp === filterEmp);
+  return vis.map(rowToExportRow);
+}
+function exportExcel() {
+  const rows = getExportRows();
+  if (!rows.length) { alert("Nenhuma admissão encontrada com esses filtros."); return; }
+  const ws = window.XLSX.utils.json_to_sheet(rows);
+  const wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, "Admissoes");
+  window.XLSX.writeFile(wb, `admissoes_central_dias_${today()}.xlsx`);
+}
+
+async function processImportRows(rowsBySheet) {
+  const { db, collection, addDoc, updateDoc, doc, serverTimestamp } = ctx;
+  let novos = 0, semEmpresa = 0, ignorados = 0, filiaisCriadas = 0;
+  const empByLabel = {};
+  (ctx.getEmpresas() || []).forEach(em => { empByLabel[em.label.trim().toUpperCase()] = em.id; });
+  const filiaisCache = ctx.getFiliais() || [];
+  const parsedRows = [];
+  for (const rows of rowsBySheet) {
+    for (const row of rows) {
+      const instRaw = getRowField(row, "Instituicao", "Instituição").trim();
+      const colaborador = getRowField(row, "Colaboradora", "Colaborador").trim();
+      if (!instRaw || !colaborador) { ignorados++; continue; }
+      const empId = empByLabel[instRaw.toUpperCase()];
+      if (!empId) { semEmpresa++; continue; }
+      const inicio = parseDateCell(getRowField(row, "Inicio", "Início"));
+      if (!inicio) { ignorados++; continue; }
+
+      const filialRaw = getRowField(row, "Filial").trim();
+      let filialId = "";
+      if (filialRaw) {
+        let filObj = filiaisCache.find(f => f.empId === empId && f.label.trim().toUpperCase() === filialRaw.toUpperCase());
+        if (!filObj) {
+          try {
+            const ordAtual = filiaisCache.filter(f => f.empId === empId).length;
+            const ref = await addDoc(collection(db, "filiais"), { empId, label: filialRaw, order: ordAtual, createdAt: serverTimestamp() });
+            filialId = ref.id;
+            filiaisCache.push({ id: ref.id, empId, label: filialRaw, order: ordAtual });
+            filiaisCriadas++;
+          } catch (e) {}
+        } else filialId = filObj.id;
+      }
+
+      const cargo = getRowField(row, "Cargo").trim();
+      const matricula = getRowField(row, "Matricula", "Matrícula").trim();
+      const matriculaEsocial = getRowField(row, "Matricula Esocial", "Matrícula Esocial", "Matrícula eSocial").trim();
+      const fimPeriodo1 = parseDateCell(getRowField(row, "Experiencia", "Experiência"));
+      const vencimentoContrato = parseDateCell(getRowField(row, "Prorrogacao Experiencia", "Prorrogação Experiência"));
+
+      const data = {
+        emp: empId, filial: filialId, colaborador, cargo, matricula, matriculaEsocial,
+        recontratacao: false, tipoContrato: "experiencia", inicio,
+        prazoS2200: addDays(inicio, -1),
+        concluido: false, passos: {}
+      };
+      PASSOS.forEach(p => { data.passos[p.key] = false; });
+      if (fimPeriodo1) {
+        data.experienciaCombo = inferCombo(inicio, fimPeriodo1);
+        data.fimPeriodo1 = fimPeriodo1;
+        data.vencimentoContrato = vencimentoContrato || fimPeriodo1;
+      } else {
+        data.experienciaCombo = "45-45";
+      }
+
+      const existing = findExistingAdmissao(colaborador, empId, inicio);
+      parsedRows.push({ data, existing });
+    }
+  }
+  const duplicates = parsedRows.filter(r => r.existing);
+  const newOnes = parsedRows.filter(r => !r.existing);
+
+  const finish = async (action) => {
+    for (const r of newOnes) {
+      try {
+        r.data.createdBy = ctx.getUser()?.uid || null;
+        r.data.createdAt = serverTimestamp();
+        await addDoc(collection(db, COLLECTION), r.data);
+        novos++;
+      } catch (e) {}
+    }
+    if (action === "overwrite") {
+      for (const r of duplicates) {
+        try {
+          const { createdAt, ...rest } = r.data;
+          await updateDoc(doc(db, COLLECTION, r.existing.id), rest);
+        } catch (e) {}
+      }
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} admissão(ões) nova(s) importada(s)\n${action === "overwrite" ? `🔄 ${duplicates.length} admissão(ões) já existente(s) foram atualizadas\n` : duplicates.length ? `⏭️ ${duplicates.length} admissão(ões) já existente(s) foram ignoradas (sem alteração)\n` : ""}${filiaisCriadas ? `🏬 ${filiaisCriadas} filial(is) nova(s) cadastrada(s) automaticamente\n` : ""}${semEmpresa ? `⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de instituição não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n` : ""}${ignorados ? `⚠️ ${ignorados} linha(s) ignorada(s) — sem instituição, colaboradora ou data de início preenchidos\n` : ""}📌 Todas entraram como Prazo de Experiência (é o único tipo que a planilha identifica, pelas colunas Experiência/Prorrogação). Se alguma admissão for Prazo Determinado ou Indeterminado, ajuste manualmente depois pelo botão ✎.`);
+  };
+
+  if (duplicates.length) {
+    const ov = document.createElement("div");
+    ov.className = "modal-ov open";
+    ov.innerHTML = `<div class="modal" style="max-width:420px">
+      <h2>⚠️ Admissões já existentes</h2>
+      <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">Encontramos <strong>${duplicates.length}</strong> linha${duplicates.length !== 1 ? "s" : ""} desta planilha que já ${duplicates.length !== 1 ? "existem" : "existe"} no sistema (mesma colaboradora, empresa e data de início). ${newOnes.length} linha${newOnes.length !== 1 ? "s são novas e serão" : " é nova e será"} importada${newOnes.length !== 1 ? "s" : ""} normalmente. O que fazer com ${duplicates.length !== 1 ? "as duplicadas" : "a duplicada"}?</p>
+      <div class="mf-row">
+        <button class="btn-cancel" data-esc-skip>⏭️ Ignorar duplicadas</button>
+        <button class="btn-save-m" data-esc-overwrite>🔄 Substituir dados</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector("[data-esc-skip]").addEventListener("click", async () => { ov.remove(); await finish("skip"); });
+    ov.querySelector("[data-esc-overwrite]").addEventListener("click", async () => { ov.remove(); await finish("overwrite"); });
+  } else {
+    await finish("skip");
+  }
+}
+
+function openReportModal() {
+  const ov = document.createElement("div");
+  ov.className = "modal-ov open";
+  ov.innerHTML = `<div class="modal" style="max-width:400px">
+    <h2>📊 Relatório de Admissões Concluídas</h2>
+    <div class="fg full"><label>Período (baseado na Data de Início)</label>
+      <select id="adm-rep-periodo">
+        <option value="all">Todo o período</option>
+        <option value="0">Hoje</option>
+        <option value="7">Última semana</option>
+        <option value="14">Últimas 2 semanas</option>
+        <option value="30">Último mês</option>
+        <option value="60">Últimos 2 meses</option>
+        <option value="90">Últimos 3 meses</option>
+        <option value="180">Últimos 6 meses</option>
+        <option value="365">Último ano</option>
+        <option value="custom">Personalizado</option>
+      </select>
+    </div>
+    <div class="fg-grid" id="adm-rep-custom-wrap" style="display:none;margin-top:9px">
+      <div class="fg"><label>De</label><input type="date" id="adm-rep-de"></div>
+      <div class="fg"><label>Até</label><input type="date" id="adm-rep-ate"></div>
+    </div>
+    <div class="mf-row">
+      <button class="btn-cancel" id="btnCloseAdmReport">Cancelar</button>
+      <button class="btn-cancel" id="btnGenAdmReportExcel">📊 Gerar Excel</button>
+      <button class="btn-save-m" id="btnGenAdmReportPDF">📄 Gerar PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector("#btnCloseAdmReport").addEventListener("click", () => ov.remove());
+  ov.querySelector("#adm-rep-periodo").addEventListener("change", function () {
+    ov.querySelector("#adm-rep-custom-wrap").style.display = this.value === "custom" ? "grid" : "none";
+  });
+  function getFilteredRows() {
+    const periodo = ov.querySelector("#adm-rep-periodo").value;
+    let dateFrom = null, dateTo = null;
+    if (periodo === "custom") {
+      dateFrom = ov.querySelector("#adm-rep-de").value || null;
+      dateTo = ov.querySelector("#adm-rep-ate").value || null;
+    } else if (periodo !== "all") {
+      dateFrom = addDays(today(), -Number(periodo));
+    }
+    let rows = registros.filter(r => r.concluido);
+    if (dateFrom) rows = rows.filter(r => r.inicio && r.inicio >= dateFrom);
+    if (dateTo) rows = rows.filter(r => r.inicio && r.inicio <= dateTo);
+    return rows;
+  }
+  ov.querySelector("#btnGenAdmReportExcel").addEventListener("click", () => {
+    const rows = getFilteredRows();
+    if (!rows.length) { alert("Nenhuma admissão concluída encontrada nesse período."); return; }
+    const data = rows.map(rowToExportRow);
+    const ws = window.XLSX.utils.json_to_sheet(data);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Concluidas");
+    window.XLSX.writeFile(wb, `relatorio_admissoes_concluidas_${today()}.xlsx`);
+    ov.remove();
+  });
+  ov.querySelector("#btnGenAdmReportPDF").addEventListener("click", () => {
+    const rows = getFilteredRows();
+    if (!rows.length) { alert("Nenhuma admissão concluída encontrada nesse período."); return; }
+    const data = rows.map(rowToExportRow);
+    const { jsPDF } = window.jspdf;
+    const docPdf = new jsPDF({ orientation: "landscape" });
+    docPdf.setFontSize(14);
+    docPdf.text("Relatório de Admissões Concluídas — Central Dias", 14, 15);
+    docPdf.setFontSize(9);
+    docPdf.text(`Gerado em ${fmtDFull(today())}`, 14, 21);
+    docPdf.autoTable({
+      startY: 26,
+      head: [["Instituição", "Filial", "Colaboradora", "Cargo", "Tipo", "Início", "Experiência", "Prorrogação", "Matrícula", "Matrícula eSocial"]],
+      body: data.map(d => [d.Instituicao, d.Filial, d.Colaboradora, d.Cargo, d["Tipo de Contrato"], d.Inicio, d.Experiencia, d["Prorrogacao Experiencia"] || d["Termino Contrato"], d.Matricula, d["Matricula eSocial"]]),
+      styles: { fontSize: 6.5 },
+      headStyles: { fillColor: [26, 31, 54] }
+    });
+    docPdf.save(`relatorio_admissoes_concluidas_${today()}.pdf`);
+    ov.remove();
+  });
+}
+
 // ---- helpers de empresa/filial (reaproveita as mesmas listas de Desligamentos) ----
 function visEmpresas() {
   const all = ctx.getEmpresas() || [];
@@ -315,7 +569,11 @@ function render() {
     <button class="adm-btn ${filterStatus === "concluido" ? "on" : ""}" data-action="filter-status" data-val="concluido">Concluídas</button>
     <button class="adm-btn ${filterStatus === "atrasado" ? "on" : ""}" data-action="filter-status" data-val="atrasado">Atrasadas</button>
     <button class="adm-btn ${filterStatus === "all" ? "on" : ""}" data-action="filter-status" data-val="all">Todas</button>
-    <button class="adm-btn primary" style="margin-left:auto" data-action="toggle-form">${formOpen ? "✕ Cancelar" : "＋ Nova Admissão"}</button>
+    <button class="adm-btn" style="margin-left:auto" data-action="export-excel">📤 Exportar Excel</button>
+    <button class="adm-btn" data-action="report-periodo">📊 Relatório por Período</button>
+    <button class="adm-btn" data-action="import-trigger">📥 Importar Excel</button>
+    <input type="file" data-action="import-file" accept=".xlsx,.xls" style="display:none">
+    <button class="adm-btn primary" data-action="toggle-form">${formOpen ? "✕ Cancelar" : "＋ Nova Admissão"}</button>
   </div>`;
 
   html += `<div class="adm-filters">
@@ -438,7 +696,7 @@ function buildCard(r) {
   div.innerHTML = `
     <div class="adm-card-hd" data-action="toggle-card" data-val="${esc(r.id)}">
       <span class="car">▾</span>
-      <span class="adm-nome">${esc(r.colaborador)}</span>
+      <span class="adm-nome">${esc(r.colaborador)}${r.cargo ? ` <span style="font-weight:400;color:var(--text2);font-size:.72rem">— ${esc(r.cargo)}</span>` : ""}</span>
       <span class="adm-tag tipo">${esc(tipoTxt)}</span>
       ${r.recontratacao ? '<span class="adm-tag recontrat">Recontratação</span>' : ""}
       ${prazoBadge(r.prazoS2200, "S-2200 até", r.concluido || !!(r.passos && r.passos.s2200))}
@@ -452,6 +710,7 @@ function buildCard(r) {
     <div class="adm-minibar"><div class="adm-minibar-fill" style="width:${pct}%"></div></div>
     <div class="adm-card-body">
       ${nota ? `<div class="adm-note"><b>⚠️ ${esc(getEmpresa(r.emp).label)}:</b> ${esc(nota)}</div>` : ""}
+      ${(r.matricula || r.matriculaEsocial) ? `<div class="adm-note">🪪 ${r.matricula ? `Matrícula: ${esc(r.matricula)}` : ""}${r.matricula && r.matriculaEsocial ? " · " : ""}${r.matriculaEsocial ? `Matrícula eSocial: ${esc(r.matriculaEsocial)}` : ""}</div>` : ""}
       ${r.observacao ? `<div class="adm-note">📝 ${esc(r.observacao)}</div>` : ""}
       ${PASSOS.map(p => `<div class="adm-task ${r.passos && r.passos[p.key] ? "done" : ""}">
         <input type="checkbox" data-action="toggle-passo" data-val="${esc(r.id)}" data-key="${esc(p.key)}" ${r.passos && r.passos[p.key] ? "checked" : ""}>
@@ -496,8 +755,11 @@ function renderForm() {
       <div class="adm-fg full">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-f="recontratacao" ${editing && editing.recontratacao ? "checked" : ""} style="width:auto"> É uma recontratação (já trabalhou nesta empresa antes)?</label>
       </div>
+      <div class="adm-fg full">
+        <div class="adm-warn">📋 Consulte sempre o CPF da colaboradora no eSocial da empresa, pra saber se ela já trabalhou aqui antes (se não aparecer nenhum registro anterior, não é recontratação).</div>
+      </div>
       <div class="adm-fg full" data-recontrat-warn style="display:${editing && editing.recontratacao ? "block" : "none"}">
-        <div class="adm-warn">⚠️ Consulte o CPF da colaboradora no eSocial da empresa. Se a recontratação for recente (cerca de 1 ano) e na mesma função, normalmente não se faz novo período de experiência — o contrato deve ser por prazo indeterminado.</div>
+        <div class="adm-warn">⚠️ Recontratação: se for recente (cerca de 1 ano) e na mesma função, normalmente não se faz novo período de experiência — o contrato deve ser por prazo indeterminado.</div>
       </div>
       <div class="adm-fg full"><label>Tipo de contrato *</label>
         <div class="adm-radios">
@@ -513,6 +775,9 @@ function renderForm() {
         <input type="number" data-f="determinadoMeses" min="1" max="24" value="${meses}">
       </div>
       <div class="adm-fg"><label>Data de início *</label><input type="date" data-f="inicio" value="${esc(inicio)}"></div>
+      <div class="adm-fg"><label>Cargo (opcional)</label><input type="text" data-f="cargo" value="${esc(editing ? (editing.cargo || "") : "")}"></div>
+      <div class="adm-fg"><label>Matrícula (opcional)</label><input type="text" data-f="matricula" value="${esc(editing ? (editing.matricula || "") : "")}"></div>
+      <div class="adm-fg"><label>Matrícula eSocial (opcional)</label><input type="text" data-f="matriculaEsocial" value="${esc(editing ? (editing.matriculaEsocial || "") : "")}"></div>
     </div>
     <div class="adm-preview" data-preview></div>
     <div class="adm-fg full"><label>Observação (opcional)</label><input type="text" data-f="observacao" value="${esc(editing ? (editing.observacao || "") : "")}"></div>
@@ -536,6 +801,9 @@ function readForm() {
     experienciaCombo: get("experienciaCombo")?.value || "45-45",
     determinadoMeses: Number(get("determinadoMeses")?.value) || 12,
     inicio: get("inicio")?.value || "",
+    cargo: (get("cargo")?.value || "").trim(),
+    matricula: (get("matricula")?.value || "").trim(),
+    matriculaEsocial: (get("matriculaEsocial")?.value || "").trim(),
     observacao: (get("observacao")?.value || "").trim()
   };
 }
@@ -617,6 +885,9 @@ function wireEvents() {
     if (action === "delete-start") { confirmingDeleteId = val; render(); return; }
     if (action === "delete-cancel") { confirmingDeleteId = null; render(); return; }
     if (action === "delete-confirm") { confirmingDeleteId = null; await deleteRecord(val); return; }
+    if (action === "export-excel") { exportExcel(); return; }
+    if (action === "report-periodo") { openReportModal(); return; }
+    if (action === "import-trigger") { mountEl.querySelector('[data-action="import-file"]')?.click(); return; }
   });
 
   mountEl.addEventListener("change", e => {
@@ -627,6 +898,17 @@ function wireEvents() {
     if (e.target.matches('[data-action="periodo-sel"]')) { filterPeriodo = e.target.value; render(); return; }
     if (e.target.matches('[data-action="periodo-de"]')) { periodoDe = e.target.value; render(); return; }
     if (e.target.matches('[data-action="periodo-ate"]')) { periodoAte = e.target.value; render(); return; }
+    if (e.target.matches('[data-action="import-file"]')) {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      file.arrayBuffer().then(buf => {
+        const wb = window.XLSX.read(buf, { type: "array", cellDates: true });
+        const rowsBySheet = wb.SheetNames.map(sn => window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: "" }));
+        return processImportRows(rowsBySheet);
+      }).catch(err => alert("Erro ao importar: " + (err?.message || err)));
+      return;
+    }
   });
 }
 
