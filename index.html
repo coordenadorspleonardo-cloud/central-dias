@@ -621,6 +621,43 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
+  <!-- MODAL QUESTIONÁRIO DE ESTABILIDADE (DP) — 24/09/2026, a pedido do Leonardo.
+       Abre depois de cadastrar (manual ou importação) um novo desligamento, pra apurar
+       riscos de estabilidade antes de fechar o processo. Não altera em nada as colunas
+       usadas na importação/exportação de Desligamentos — fica salvo à parte, no próprio
+       registro do desligamento (campo estabilidade). -->
+  <div class="modal-ov" id="modalEstabOv">
+    <div class="modal">
+      <h2 id="modalEstabTitle">📋 Questionário de Estabilidade</h2>
+      <div id="modalEstabSub" style="font-size:.78rem;color:var(--text2);margin-bottom:10px"></div>
+      <div id="modalEstabAlerta"></div>
+      <div class="fg-grid">
+        <div class="fg"><label>Tempo de casa</label><input type="text" id="estab-tempocasa" placeholder="Ex: 2 anos e 3 meses"></div>
+        <div class="fg"><label>Idade</label><input type="number" id="estab-idade" min="14" max="100"></div>
+        <div class="fg"><label>Afastamento nos últimos 30 dias?</label>
+          <select id="estab-afast30"><option value="nao">Não</option><option value="sim">Sim</option></select>
+        </div>
+        <div class="fg"><label>CAT no último ano?</label>
+          <select id="estab-cat1ano"><option value="nao">Não</option><option value="sim">Sim</option></select>
+        </div>
+        <div class="fg"><label>Retornando de licença maternidade nos últimos 30 dias?</label>
+          <select id="estab-licmat30"><option value="nao">Não</option><option value="sim">Sim</option></select>
+        </div>
+        <div class="fg"><label>Esteve de férias nos últimos 30 dias?</label>
+          <select id="estab-ferias30"><option value="nao">Não</option><option value="sim">Sim</option></select>
+        </div>
+        <div class="fg"><label>Esteve de auxílio-doença nos últimos 30 dias?</label>
+          <select id="estab-auxdoenca30"><option value="nao">Não</option><option value="sim">Sim</option></select>
+        </div>
+        <div class="fg full"><label>Observação (opcional)</label><input type="text" id="estab-obs"></div>
+      </div>
+      <div class="mf-row">
+        <button class="btn-cancel" id="btnSkipEstab">Pular</button>
+        <button class="btn-save-m" id="btnSaveEstab">💾 Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL AFASTAMENTO (DP) -->
   <div class="modal-ov" id="modalAfastOv">
     <div class="modal">
@@ -1349,6 +1386,7 @@ document.addEventListener("keydown",e=>{
   if(top.id==="modalOv")closeModal();
   else if(top.id==="modalDegOv")closeDegModal();
   else if(top.id==="modalAfastOv")closeAfastModal();
+  else if(top.id==="modalEstabOv")advanceEstabQueue();
   else top.remove();
 });
 function fmtD(s){if(!s)return"";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;}
@@ -2293,7 +2331,27 @@ function startListeners(){
 
   const processosDefRef=doc(db,"config","processos_dp");
   getDoc(processosDefRef).then(snap=>{
-    if(!snap.exists())setDoc(processosDefRef,{list:DEF_PROCESSOS_DP,anexoEsocial:ANEXO_ESOCIAL_DP});
+    if(!snap.exists()){
+      setDoc(processosDefRef,{list:DEF_PROCESSOS_DP,anexoEsocial:ANEXO_ESOCIAL_DP});
+      return;
+    }
+    // 24/09/2026: a definição de processos fica salva no Firestore (pra dar pra editar
+    // pela tela, no botão ✏️), e uma vez salva ela nunca mais lê o array DEF_PROCESSOS_DP
+    // do código — foi por isso que o reforço de Admissão/Atestados/Rescisões (pedido pelo
+    // Leonardo em 23/09) não apareceu pra ele, mesmo já publicado no GitHub. Corrige
+    // sincronizando pontualmente só essas 3 chaves com a versão do código, sem tocar em
+    // nenhuma outra personalização feita pela tela de edição.
+    const CHAVES_REFORCADAS_23_09=["admissao","atestados","rescisoes"];
+    const listaSalva=snap.data().list||[];
+    let mudou=false;
+    const listaSincronizada=listaSalva.map(item=>{
+      if(!CHAVES_REFORCADAS_23_09.includes(item.key))return item;
+      const versaoCodigo=DEF_PROCESSOS_DP.find(d=>d.key===item.key);
+      if(!versaoCodigo||JSON.stringify(item)===JSON.stringify(versaoCodigo))return item;
+      mudou=true;
+      return versaoCodigo;
+    });
+    if(mudou)setDoc(processosDefRef,{list:listaSincronizada,anexoEsocial:snap.data().anexoEsocial||ANEXO_ESOCIAL_DP},{merge:true});
   });
   unsubProcessosDefs=onSnapshot(processosDefRef,snap=>{
     if(snap.exists()&&snap.data().list?.length){
@@ -4569,6 +4627,7 @@ function openDegPreview(id){
     </div>
     <div class="mf-row">
       <button class="btn-cancel" id="btnCloseDegPreview">Fechar</button>
+      <button class="btn-cancel" id="btnEstabFromDegPreview">📋 Estabilidade</button>
       ${canEdit?`<button class="btn-save-m" id="btnEditFromDegPreview">✏️ Editar</button>`:""}
     </div>
   </div>`;
@@ -4576,6 +4635,7 @@ function openDegPreview(id){
   ov.addEventListener("click",e=>{if(e.target===ov)ov.remove();});
   ov.querySelector("#btnCloseDegPreview").addEventListener("click",()=>ov.remove());
   ov.querySelector("#btnEditFromDegPreview")?.addEventListener("click",()=>{ov.remove();openDegModal(d.id);});
+  ov.querySelector("#btnEstabFromDegPreview")?.addEventListener("click",()=>{ov.remove();openEstabModal(d.id,[]);});
 }
 
 function openDegModal(id){
@@ -4599,6 +4659,92 @@ function openDegModal(id){
   document.getElementById("modalDegOv").classList.add("open");
 }
 function closeDegModal(){document.getElementById("modalDegOv").classList.remove("open");editDegId=null;}
+
+// ══════════════ QUESTIONÁRIO DE ESTABILIDADE (DP) — 24/09/2026 ══════════════
+// Abre logo depois de cadastrar um desligamento (manual ou importado), pra apurar riscos
+// de estabilidade (tempo de casa, idade, afastamentos recentes, data-base do sindicato...).
+// Guardado à parte, no próprio registro do desligamento (campo "estabilidade") — não tem
+// nenhum efeito na importação/exportação por planilha, que continua exatamente igual.
+let estabQueue=[]; // ids restantes numa fila (usado quando vem de uma importação em lote)
+let estabCurrentId=null;
+
+function estabDataBaseInfo(d){
+  // Sinaliza quando o término ou o vencimento cai em junho, julho (data-base do sindicato)
+  // ou janeiro, como o Leonardo pediu.
+  const campos={termino:d.termino,vencimento:d.vencimento};
+  const achou=Object.entries(campos).find(([,v])=>{
+    if(!v)return false;
+    const mes=Number(v.split("-")[1]);
+    return mes===6||mes===7||mes===1;
+  });
+  if(!achou)return null;
+  const[campo,valor]=achou;
+  const mes=Number(valor.split("-")[1]);
+  const nomeMes=mes===6?"junho":mes===7?"julho":"janeiro";
+  return`⚠️ ${campo==="termino"?"Término":"Vencimento"} cai em <b>${nomeMes}</b> (${fmtD(valor)}) — período de data-base do sindicato (jun/jul) ou janeiro. Confira se há estabilidade provisória antes de seguir.`;
+}
+
+function openEstabModal(deslId,queue,attempt){
+  attempt=attempt||0;
+  const d=desligamentos.find(x=>x.id===deslId);
+  if(!d){
+    if(attempt>10)return; // não achou o registro depois de ~4s — desiste silenciosamente
+    setTimeout(()=>openEstabModal(deslId,queue,attempt+1),400);
+    return;
+  }
+  estabCurrentId=deslId;
+  estabQueue=queue||[];
+  const e=d.estabilidade||{};
+  document.getElementById("modalEstabTitle").textContent=`📋 Questionário de Estabilidade — ${d.colaborador}`;
+  document.getElementById("modalEstabSub").textContent=estabQueue.length?`Faltam ${estabQueue.length+1} desligamento(s) nesta importação`:"";
+  const alertaTxt=estabDataBaseInfo(d);
+  document.getElementById("modalEstabAlerta").innerHTML=alertaTxt?`<div class="fg full" style="margin-bottom:10px"><div style="background:rgba(224,140,58,.12);border:1px solid rgba(224,140,58,.35);border-radius:8px;padding:8px 10px;font-size:.78rem;color:var(--imp);line-height:1.5">${alertaTxt}</div></div>`:"";
+  document.getElementById("estab-tempocasa").value=e.tempoCasa||"";
+  document.getElementById("estab-idade").value=e.idade||"";
+  document.getElementById("estab-afast30").value=e.afast30?"sim":"nao";
+  document.getElementById("estab-cat1ano").value=e.cat1Ano?"sim":"nao";
+  document.getElementById("estab-licmat30").value=e.licMat30?"sim":"nao";
+  document.getElementById("estab-ferias30").value=e.ferias30?"sim":"nao";
+  document.getElementById("estab-auxdoenca30").value=e.auxDoenca30?"sim":"nao";
+  document.getElementById("estab-obs").value=e.obs||"";
+  document.getElementById("btnSaveEstab").textContent=estabQueue.length?"💾 Salvar e ir pra próxima":"💾 Salvar";
+  document.getElementById("btnSkipEstab").textContent=estabQueue.length?"Pular esta":"Pular";
+  document.getElementById("modalEstabOv").classList.add("open");
+}
+function closeEstabModal(){document.getElementById("modalEstabOv").classList.remove("open");estabCurrentId=null;}
+function advanceEstabQueue(){
+  closeEstabModal();
+  if(estabQueue.length){
+    const next=estabQueue[0];
+    const rest=estabQueue.slice(1);
+    openEstabModal(next,rest);
+  }
+}
+function openEstabModalQueue(ids){
+  if(!ids||!ids.length)return;
+  openEstabModal(ids[0],ids.slice(1));
+}
+document.getElementById("btnSkipEstab")?.addEventListener("click",()=>advanceEstabQueue());
+document.getElementById("modalEstabOv")?.addEventListener("click",e=>{if(e.target===e.currentTarget)advanceEstabQueue();});
+document.getElementById("btnSaveEstab")?.addEventListener("click",async()=>{
+  if(!estabCurrentId)return;
+  const estabilidade={
+    tempoCasa:document.getElementById("estab-tempocasa").value.trim(),
+    idade:document.getElementById("estab-idade").value?Number(document.getElementById("estab-idade").value):null,
+    afast30:document.getElementById("estab-afast30").value==="sim",
+    cat1Ano:document.getElementById("estab-cat1ano").value==="sim",
+    licMat30:document.getElementById("estab-licmat30").value==="sim",
+    ferias30:document.getElementById("estab-ferias30").value==="sim",
+    auxDoenca30:document.getElementById("estab-auxdoenca30").value==="sim",
+    obs:document.getElementById("estab-obs").value.trim(),
+    respondidoEm:new Date().toISOString(),
+    respondidoPor:user?.uid||null
+  };
+  const risco=estabilidade.afast30||estabilidade.cat1Ano||estabilidade.licMat30||estabilidade.ferias30||estabilidade.auxDoenca30;
+  const idParaSalvar=estabCurrentId;
+  try{await updateDoc(doc(db,"desligamentos",idParaSalvar),{estabilidade,estabilidadeRisco:risco});}catch(e){}
+  advanceEstabQueue();
+});
 
 // ══════════════ AFASTAMENTOS (DP) — 13/09/2026 ══════════════
 let afastamentosDp=[], unsubAfastamentosDp=null;
@@ -5478,7 +5624,13 @@ document.getElementById("btnSaveDeg")?.addEventListener("click",async()=>{
   };
   try{
     if(editDegId){await updateDoc(doc(db,"desligamentos",editDegId),data);}
-    else{data.createdAt=serverTimestamp();await addDoc(collection(db,"desligamentos"),data);}
+    else{
+      data.createdAt=serverTimestamp();
+      const ref=await addDoc(collection(db,"desligamentos"),data);
+      closeDegModal();
+      openEstabModal(ref.id,[]); // 24/09/2026: abre o questionário de estabilidade logo após cadastrar
+      return;
+    }
     closeDegModal();
   }catch(e){alert("Erro: "+translateErr(e));}
 });
@@ -5664,17 +5816,21 @@ function buildDegCard(d){
         <span class="tag" style="background:var(--s3);color:var(--text2)">Término ${fmtD(d.termino)}</span>
         <span class="tag" style="background:var(--s3);color:var(--text2)">Vencimento ${fmtD(d.vencimento)}</span>
         ${d.homologData?`<span class="tag" style="background:rgba(124,111,205,.16);color:var(--accent2)">Homologação ${fmtD(d.homologData)}${d.homologHora?" · "+d.homologHora:""}</span>`:""}
+        ${d.estabilidade?(d.estabilidadeRisco?`<span class="tag" style="background:rgba(224,92,92,.16);color:#ff8a8a">⚠️ Verificar estabilidade</span>`:`<span class="tag" style="background:rgba(76,175,125,.12);color:#5fdb9c">📋 Estabilidade OK</span>`):`<span class="tag estab-pend" style="background:var(--s3);color:var(--text3);cursor:pointer" data-degid="${d.id}">📋 Estabilidade pendente</span>`}
       </div>
     </div>
     <div class="t-actions">
+      <button class="bi estab" title="Questionário de estabilidade">📋</button>
       ${canEdit?`<button class="bi edit">✏️</button><button class="bi del">🗑</button>`:""}
     </div>`;
   div.addEventListener("click",e=>{
-    if(e.target.closest("button,.deg-flag"))return;
+    if(e.target.closest("button,.deg-flag,.estab-pend"))return;
     openDegPreview(d.id);
   });
   div.querySelector(".bi.edit")?.addEventListener("click",e=>{e.stopPropagation();openDegModal(d.id);});
   div.querySelector(".bi.del")?.addEventListener("click",e=>{e.stopPropagation();deleteDeslig(d.id);});
+  div.querySelector(".bi.estab")?.addEventListener("click",e=>{e.stopPropagation();openEstabModal(d.id,[]);});
+  div.querySelector(".estab-pend")?.addEventListener("click",e=>{e.stopPropagation();openEstabModal(d.id,[]);});
   div.querySelectorAll(".deg-flag").forEach(btn=>{
     btn.addEventListener("click",()=>toggleDegFlag(btn.dataset.degid,btn.dataset.flag));
   });
@@ -5991,8 +6147,9 @@ async function processDegImportRows(rowsBySheet){
   const newOnes=parsedRows.filter(r=>!r.existing);
 
   const finish=async(action)=>{ // action: "skip" ou "overwrite"
+    const novosIds=[];
     for(const r of newOnes){
-      try{await addDoc(collection(db,"desligamentos"),r.data);novos++;}catch(e){}
+      try{const ref=await addDoc(collection(db,"desligamentos"),r.data);novosIds.push(ref.id);novos++;}catch(e){}
     }
     if(action==="overwrite"){
       for(const r of duplicates){
@@ -6000,6 +6157,8 @@ async function processDegImportRows(rowsBySheet){
       }
     }
     alert(`Importação concluída!\n\n✅ ${novos} lançamento(s) novo(s) importado(s)\n${action==="overwrite"?`🔄 ${duplicates.length} lançamento(s) já existente(s) foram atualizados\n`:duplicates.length?`⏭️ ${duplicates.length} lançamento(s) já existente(s) foram ignorados (sem alteração)\n`:""}${semEmpresa?`⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de empresa não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n`:""}${ignorados?`⚠️ ${ignorados} linha(s) ignorada(s) — sem colaborador, empresa ou data de término preenchidos`:""}`);
+    // 24/09/2026: pede o questionário de estabilidade pra cada desligamento novo desta importação, um de cada vez
+    if(novosIds.length)openEstabModalQueue(novosIds);
   };
 
   if(duplicates.length){
