@@ -786,21 +786,18 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     </div>
   </div>
 
-  <div class="tabs">
+  <div class="tabs" id="mainTabsBar">
     <button class="tab active" data-tab="lista">📋 Lista <span class="tbadge" id="listaTabBadge" style="display:none;background:var(--lista-badge-color,var(--accent));color:#0f0f13"></span></button>
     <button class="tab" data-tab="kanban">🚦 Prioridade</button>
     <button class="tab" data-tab="agenda">📅 Agenda</button>
-    <button class="tab" data-tab="planilha">📊 Planilha</button>
-    <button class="tab" data-tab="dash">📈 Dashboard</button>
-    <button class="tab" data-tab="historico">📜 Histórico</button>
-    <button class="tab" data-tab="concluidas">✅ Concluídas</button>
     <button class="tab" data-tab="acompanhamento">👁️ Acompanhamento <span class="tbadge" id="watchTabBadge" style="display:none;background:var(--watch-badge-color,var(--accent2))"></span></button>
     <button class="tab" data-tab="chat">💬 Chat <span class="tbadge" id="chatTabBadge" style="display:none;background:#3b9ce0"></span></button>
     <button class="tab" data-tab="deslig">🚪 Desligamentos <span class="tbadge" id="degTabBadge" style="display:none;background:var(--deg-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="pendencias">🗂️ Pendências <span class="tbadge" id="pendTabBadge" style="display:none;background:var(--pend-badge-color,var(--urg))"></span></button>
     <button class="tab" data-tab="afastamentos">🩺 Afastamentos <span class="tbadge" id="afastTabBadge" style="display:none;background:var(--imp)"></span></button>
     <button class="tab" data-tab="admissoes">📥 Admissões <span class="tbadge" id="admissoesTabBadge" style="display:none;background:var(--nor)"></span></button>
-    <button class="tab" data-tab="processos">📚 Processos</button>
+    <button class="tab" data-tab="fechamento">🧾 Fechamento da Folha</button>
+    <button class="tab" data-tab="informacoes">ℹ️ Informações</button>
     <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
@@ -987,11 +984,11 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
       <div id="afastList"></div>
     </div>
     <div class="view" id="view-admissoes"><div id="admissoesRoot"></div></div>
+    <div class="view" id="view-fechamento"><div id="fechRoot"></div></div>
     <div class="view" id="view-processos">
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
         <button class="fp on" data-procview="consulta">📖 Consulta</button>
         <button class="fp" data-procview="execucoes">▶️ Execuções <span id="procExecBadge" class="tbadge" style="display:none;background:var(--accent)"></span></button>
-        <button class="fp" data-procview="fechamento">🧾 Fechamento da Folha</button>
       </div>
       <div id="procConsultaWrap">
         <p style="font-size:.72rem;color:var(--text2);margin-bottom:12px">📚 Manual de processos do Departamento Pessoal — modelo padrão, válido para as 4 empresas atendidas (AMASP, Casa da Criança Feliz, CEDAP, Jardim das Princesas). <span class="admin-only-el" style="display:none">Só o Admin edita o conteúdo abaixo.</span></p>
@@ -1012,9 +1009,9 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         </div>
         <div id="procExecList"></div>
       </div>
-      <div id="procFechamentoWrap" style="display:none">
-        <div id="fechRoot"></div>
-      </div>
+    </div>
+    <div class="view" id="view-dados">
+      <div id="infoDadosRoot"></div>
     </div>
     <div class="view" id="view-notas">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -1145,6 +1142,14 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
           <div id="empColorsPersonalConfig"></div>
         </div>
         <div class="sc">
+          <h3>🔀 Ordem das Abas (pessoal)</h3>
+          <p style="font-size:.68rem;color:var(--text2);margin-bottom:9px">Use ▲▼ pra arrumar do seu jeito — só muda a ordem que você vê, cada pessoa pode organizar diferente.</p>
+          <p style="font-size:.68rem;color:var(--text3);margin:6px 0 4px">Barra principal</p>
+          <div id="mainTabOrderConfig"></div>
+          <p style="font-size:.68rem;color:var(--text3);margin:12px 0 4px">Dentro de Informações</p>
+          <div id="infoSubOrderConfig"></div>
+        </div>
+        <div class="sc">
           <h3>🚦 Prioridades</h3>
           <div class="color-row"><span class="cl">Urgente</span><div class="cprev" style="background:var(--urg)"></div><input class="cinp" type="color" value="#e05c5c" data-var="--urg"></div>
           <div class="color-row"><span class="cl">Importante</span><div class="cprev" style="background:var(--imp)"></div><input class="cinp" type="color" value="#e08c3a" data-var="--imp"></div>
@@ -1175,6 +1180,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { initFechamento, renderFechamento } from "./fechamento.js";
 import { initAdmissoes, renderAdmissoes } from "./admissoes.js";
+import { initDadosAcessos, renderInfoDados } from "./dadosacessos.js";
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
@@ -1185,6 +1191,7 @@ let groups=[];
 let unsubGroups=null;
 let unsubFechamento=null;
 let unsubAdmissoes=null;
+let unsubDadosAcessos=null;
 const app = initializeApp({
   apiKey:"AIzaSyAIFImaQ5ONMGLudUhQMkoPjQeMBFAbENs",
   authDomain:"gestor-dp-ad1fa.firebaseapp.com",
@@ -2087,17 +2094,128 @@ document.getElementById("rp").addEventListener("input",function(){
   document.getElementById("sforca").innerHTML=checks.map(c=>`<span style="color:${c.ok?"var(--nor)":"var(--text3)"};margin-right:9px">${c.ok?"✓":"○"} ${c.txt}</span>`).join("");
 });
 
+// ══════════════ Aba "Informações" (24/09/2026) ══════════════
+// Reúne Planilha/Dashboard/Histórico/Concluídas/Processos/Dados & Acessos numa
+// única aba principal, com uma sub-navegação própria (mesmo padrão .fp já usado
+// dentro de Processos/Execuções). As views em si (view-planilha, view-dash etc.)
+// continuam existindo exatamente como antes — só deixaram de ter botão próprio
+// na barra principal — por isso nenhum outro código que já mexe nelas precisou
+// mudar. A sub-navegação é injetada por JS no topo de cada uma (uma única fonte
+// de verdade pro HTML da barra, em vez de repetir 6x no documento).
+const INFO_SUBVIEWS=[
+  {v:"planilha",label:"📊 Planilha"},
+  {v:"dash",label:"📈 Dashboard"},
+  {v:"historico",label:"📜 Histórico"},
+  {v:"concluidas",label:"✅ Concluídas"},
+  {v:"processos",label:"📚 Processos"},
+  {v:"dados",label:"🔐 Dados &amp; Acessos"}
+];
+function infoSubnavHtml(active){
+  return `<div class="filters info-subnav" style="border:none;background:transparent;padding:0 0 10px;">`+
+    INFO_SUBVIEWS.map(s=>`<button class="fp${s.v===active?" on":""}" data-infoview="${s.v}">${s.label}</button>`).join("")+
+    `</div>`;
+}
+INFO_SUBVIEWS.forEach(s=>{
+  const el=document.getElementById("view-"+s.v);
+  if(el)el.insertAdjacentHTML("afterbegin",infoSubnavHtml(s.v));
+});
+let lastInfoSubview=(()=>{try{return localStorage.getItem("cdLastInfoSubview")||"planilha";}catch(e){return"planilha";}})();
+function showInfoSubview(name){
+  if(!INFO_SUBVIEWS.some(s=>s.v===name))name="planilha";
+  lastInfoSubview=name;
+  try{localStorage.setItem("cdLastInfoSubview",name);}catch(e){}
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelector('.tab[data-tab="informacoes"]')?.classList.add("active");
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.getElementById("view-"+name)?.classList.add("active");
+  document.querySelectorAll(".info-subnav .fp").forEach(b=>b.classList.toggle("on",b.dataset.infoview===name));
+  if(name==="processos"){renderProcessos();renderProcessoExecucoes();}
+  if(name==="dados")renderInfoDados();
+}
+document.querySelectorAll("[data-infoview]").forEach(btn=>{
+  btn.addEventListener("click",()=>showInfoSubview(btn.dataset.infoview));
+});
+
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.addEventListener("click",()=>{
+    if(btn.dataset.tab==="informacoes"){showInfoSubview(lastInfoSubview);return;}
     document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
     document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("view-"+btn.dataset.tab).classList.add("active");
     if(btn.dataset.tab==="chat")renderChat();
     if(btn.dataset.tab==="admissoes")renderAdmissoes();
-    if(btn.dataset.tab==="processos"){renderProcessos();renderProcessoExecucoes();if(procViewMode==="fechamento")renderFechamento();}
+    if(btn.dataset.tab==="fechamento")renderFechamento();
   });
 });
+
+// ══════════════ Ordem das abas, pessoal (24/09/2026) ══════════════
+// Cada colaborador pode reorganizar a barra principal e a sub-navegação de
+// Informações do jeito que preferir — guardado só no navegador de quem usa
+// (mesmo padrão já usado pra grupos recolhíveis e cores de empresa pessoais),
+// não é uma ordem única imposta a todo mundo.
+const MAIN_TAB_META=[
+  {tab:"lista",label:"📋 Lista"},{tab:"kanban",label:"🚦 Prioridade"},{tab:"agenda",label:"📅 Agenda"},
+  {tab:"acompanhamento",label:"👁️ Acompanhamento"},{tab:"chat",label:"💬 Chat"},{tab:"deslig",label:"🚪 Desligamentos"},
+  {tab:"pendencias",label:"🗂️ Pendências"},{tab:"afastamentos",label:"🩺 Afastamentos"},{tab:"admissoes",label:"📥 Admissões"},
+  {tab:"fechamento",label:"🧾 Fechamento da Folha"},{tab:"informacoes",label:"ℹ️ Informações"},
+  {tab:"notas",label:"📝 Quadro de Anotações"},{tab:"config",label:"⚙️ Configurações"}
+];
+function getSavedOrder(key,allKeys){
+  let saved=[];
+  try{saved=JSON.parse(localStorage.getItem(key)||"[]");}catch(e){}
+  const valid=saved.filter(k=>allKeys.includes(k));
+  const missing=allKeys.filter(k=>!valid.includes(k));
+  return[...valid,...missing];
+}
+function setSavedOrder(key,order){try{localStorage.setItem(key,JSON.stringify(order));}catch(e){}}
+function applyOrderToContainer(containerEl,order,attr){
+  if(!containerEl)return;
+  order.forEach(k=>{
+    const el=containerEl.querySelector(`[${attr}="${k}"]`);
+    if(el)containerEl.appendChild(el);
+  });
+}
+function applyMainTabOrder(){
+  const order=getSavedOrder("cdMainTabOrder",MAIN_TAB_META.map(m=>m.tab));
+  applyOrderToContainer(document.getElementById("mainTabsBar"),order,"data-tab");
+}
+function applyInfoSubOrder(){
+  const order=getSavedOrder("cdInfoSubOrder",INFO_SUBVIEWS.map(s=>s.v));
+  document.querySelectorAll(".info-subnav").forEach(nav=>applyOrderToContainer(nav,order,"data-infoview"));
+}
+function moveInOrder(storageKey,allKeys,key,dir){
+  const order=getSavedOrder(storageKey,allKeys);
+  const idx=order.indexOf(key),newIdx=idx+dir;
+  if(newIdx<0||newIdx>=order.length)return;
+  [order[idx],order[newIdx]]=[order[newIdx],order[idx]];
+  setSavedOrder(storageKey,order);
+}
+function renderOneOrderList(containerId,storageKey,items,applyFn){
+  const c=document.getElementById(containerId);if(!c)return;
+  const allKeys=items.map(i=>i.v);
+  const order=getSavedOrder(storageKey,allKeys);
+  const ordered=order.map(k=>items.find(i=>i.v===k)).filter(Boolean);
+  c.innerHTML=ordered.map((it,idx)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:.78rem;color:var(--text)">${it.label}</span>
+      <button class="bi" data-orderup="1" data-key="${it.v}" ${idx===0?"disabled":""} style="flex:none">▲</button>
+      <button class="bi" data-orderdown="1" data-key="${it.v}" ${idx===ordered.length-1?"disabled":""} style="flex:none">▼</button>
+    </div>`).join("");
+  c.querySelectorAll("[data-orderup]").forEach(btn=>{
+    btn.addEventListener("click",()=>{moveInOrder(storageKey,allKeys,btn.dataset.key,-1);applyFn();renderTabOrderConfig();});
+  });
+  c.querySelectorAll("[data-orderdown]").forEach(btn=>{
+    btn.addEventListener("click",()=>{moveInOrder(storageKey,allKeys,btn.dataset.key,1);applyFn();renderTabOrderConfig();});
+  });
+}
+function renderTabOrderConfig(){
+  renderOneOrderList("mainTabOrderConfig","cdMainTabOrder",MAIN_TAB_META.map(m=>({v:m.tab,label:m.label})),applyMainTabOrder);
+  renderOneOrderList("infoSubOrderConfig","cdInfoSubOrder",INFO_SUBVIEWS,applyInfoSubOrder);
+}
+applyMainTabOrder();
+applyInfoSubOrder();
+renderTabOrderConfig();
 
 document.querySelectorAll(".thbtn").forEach(btn=>{
   btn.addEventListener("click",async()=>{
@@ -2376,8 +2494,12 @@ function startListeners(){
     db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,query,where,serverTimestamp,
     getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members,getEmpresas:()=>empresas,getFiliais:()=>filiais
   });
+  unsubDadosAcessos=initDadosAcessos({
+    db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,serverTimestamp,
+    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes,unsubDadosAcessos].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -5586,9 +5708,7 @@ document.querySelectorAll('[data-procview]').forEach(btn=>{
     procViewMode=btn.dataset.procview;
     document.getElementById("procConsultaWrap").style.display=procViewMode==="consulta"?"":"none";
     document.getElementById("procExecucoesWrap").style.display=procViewMode==="execucoes"?"":"none";
-    document.getElementById("procFechamentoWrap").style.display=procViewMode==="fechamento"?"":"none";
     if(procViewMode==="execucoes")renderProcessoExecucoes();
-    if(procViewMode==="fechamento")renderFechamento();
   });
 });
 document.querySelectorAll('[data-procstatus]').forEach(btn=>{
