@@ -879,6 +879,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         <button id="btnDegReport" class="btn-cancel">📊 Relatório por Período</button>
         <button id="btnImportDegTrigger" class="btn-cancel">📥 Importar Excel</button>
         <input type="file" id="importDegFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnModeloDeg" class="btn-cancel">📎 Baixar modelo</button>
         <button id="btnNewDeslig" class="btn-save-m">＋ Novo Desligamento</button>
       </div>
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
@@ -923,6 +924,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
         <button id="btnExportPend" class="btn-cancel" style="margin-left:auto">📤 Exportar Excel</button>
         <button id="btnImportPendTrigger" class="btn-cancel">📥 Importar Excel</button>
         <input type="file" id="importPendFile" accept=".xlsx,.xls" style="display:none">
+        <button id="btnModeloPend" class="btn-cancel">📎 Baixar modelo</button>
         <button id="btnNewPend" class="btn-save-m">＋ Nova Pendência</button>
       </div>
       <div class="filters" style="border:none;background:transparent;padding:0 0 10px;">
@@ -2496,7 +2498,7 @@ function startListeners(){
   });
   unsubDadosAcessos=initDadosAcessos({
     db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,serverTimestamp,
-    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members
+    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members,getEmpresas:()=>empresas,getFiliais:()=>filiais
   });
 }
 function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes,unsubDadosAcessos].forEach(u=>u&&u());}
@@ -4653,6 +4655,15 @@ async function processPendImportRows(rowsBySheet){
 }
 
 document.getElementById("btnImportPendTrigger")?.addEventListener("click",()=>document.getElementById("importPendFile").click());
+document.getElementById("btnModeloPend")?.addEventListener("click",()=>{
+  if(!window.XLSX){alert("A biblioteca de Excel ainda não carregou. Aguarde um instante e tente de novo.");return;}
+  const headers=["Instituição","DRE","Responsável","Filial","Trimestre","Recebimento","Entrega","Descrição","Observação","Status"];
+  const exemplo=["CEDAP","Butantã","","ALECRIM","3º TRI 2026","01/10/2026","20/10/2026","Envio de guias trimestrais","","Não iniciado"];
+  const ws=window.XLSX.utils.aoa_to_sheet([headers,exemplo]);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Modelo Pendencias");
+  window.XLSX.writeFile(wb,"modelo_importacao_pendencias.xlsx");
+});
 document.getElementById("importPendFile")?.addEventListener("change",async e=>{
   const file=e.target.files[0];
   e.target.value="";
@@ -6189,6 +6200,15 @@ document.getElementById("btnExportDeg")?.addEventListener("click",()=>{
 });
 
 document.getElementById("btnImportDegTrigger")?.addEventListener("click",()=>document.getElementById("importDegFile").click());
+document.getElementById("btnModeloDeg")?.addEventListener("click",()=>{
+  if(!window.XLSX){alert("A biblioteca de Excel ainda não carregou. Aguarde um instante e tente de novo.");return;}
+  const headers=["Instituição","Filial","Colaborador","Tipo de Dispensa","Início","Término","Vencimento","Pagamento","Descontos","Homologação"];
+  const exemplo=["CEDAP","ALECRIM","Maria da Silva","Término de Contrato","01/09/2026","30/09/2026","10/10/2026","Pendente","","05/09/2026 14:30"];
+  const ws=window.XLSX.utils.aoa_to_sheet([headers,exemplo]);
+  const wb=window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb,ws,"Modelo Desligamentos");
+  window.XLSX.writeFile(wb,"modelo_importacao_desligamentos.xlsx");
+});
 function getRowField(row,...names){
   const keys=Object.keys(row);
   for(const name of names){
