@@ -311,6 +311,35 @@ function sheetToRowsSmart(ws) {
   }
   return window.XLSX.utils.sheet_to_json(ws, { range: headerIdx, defval: "" });
 }
+// 24/09/2026: colar (Ctrl+V) direto da planilha, igual ao que já existe em Desligamentos/
+// Pendências — faltava só em Admissões. Mesma detecção de linha de cabeçalho do import por
+// arquivo, agora aplicada às linhas coladas (separadas por tabulação).
+function parseTSVToRowsSmart(text) {
+  const lines = text.replace(/\r/g, "").split("\n").filter(l => l.length);
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    if (looksLikeHeaderRow(lines[i].split("\t"))) { headerIdx = i; break; }
+  }
+  const headers = lines[headerIdx].split("\t").map(h => h.trim());
+  return lines.slice(headerIdx + 1).map(line => {
+    const cells = line.split("\t");
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = cells[i] !== undefined ? cells[i] : ""; });
+    return obj;
+  });
+}
+function handleGlobalPaste(e) {
+  const activeView = document.querySelector(".view.active");
+  if (!activeView || activeView.id !== "view-admissoes") return;
+  if (["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  const text = e.clipboardData?.getData("text/plain") || "";
+  if (!text || !text.includes("\t")) return; // só age se parecer uma tabela colada do Excel (com tabulações)
+  e.preventDefault();
+  const rows = parseTSVToRowsSmart(text);
+  if (!rows.length) { alert("Não consegui reconhecer os dados colados. Copie incluindo a linha de cabeçalho (Instituição, Colaboradora, etc.) e as linhas de dados."); return; }
+  if (!confirm(`Foram detectadas ${rows.length} linha(s) coladas. Deseja importar como admissões?`)) return;
+  processImportRows([rows]);
+}
 function diffDays(a, b) {
   return Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000);
 }
@@ -649,6 +678,7 @@ function render() {
   </div>`;
 
   html += `<div class="adm-orient"><b>Orientação.</b> ${esc(ORIENTACAO_TEXTO)}</div>`;
+  html += `<div style="font-size:.68rem;color:var(--text3)">💡 Dica: selecione e copie (Ctrl+C) linhas da sua planilha do Excel e cole aqui (Ctrl+V) direto nesta tela — o sistema já importa automaticamente, igual em Desligamentos e Pendências.</div>`;
 
   // filtros
   const emps = visEmpresas();
@@ -1016,8 +1046,10 @@ export function initAdmissoes(c) {
   if (!mountEl) return () => {};
   wireEvents();
   subscribeAdmissoes();
+  document.addEventListener("paste", handleGlobalPaste);
   return function stopAdmissoes() {
     if (unsubAdmissoes) { unsubAdmissoes(); unsubAdmissoes = null; }
+    document.removeEventListener("paste", handleGlobalPaste);
   };
 }
 
