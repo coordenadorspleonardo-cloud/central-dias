@@ -251,13 +251,65 @@ function getRowField(row, ...names) {
   }
   return "";
 }
+// 24/09/2026: normaliza texto pra comparação (maiúsculas, sem acento, sem espaço duplicado) —
+// usado tanto pra reconhecer a linha de cabeçalho quanto pra casar o nome da instituição com
+// o nome cadastrado, mesmo com pequenas diferenças de acentuação/espaçamento entre a planilha
+// do Leonardo e o que está salvo no sistema.
+function normalizeStr(s) {
+  return String(s == null ? "" : s)
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .trim().toUpperCase().replace(/\s+/g, " ");
+}
+// Converte um número de série de data do Excel (dias desde 30/12/1899) pra "YYYY-MM-DD".
+// Precisa como reforço porque, em algumas planilhas, a célula de data não vem como objeto
+// Date mesmo com cellDates:true (ex.: coluna formatada como texto/número no Excel).
+function excelSerialToDate(serial) {
+  if (!serial || !isFinite(serial) || serial < 1) return null;
+  const utcDays = Math.floor(serial - 25569);
+  const d = new Date(utcDays * 86400000);
+  if (isNaN(d.getTime())) return null;
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 function parseDateCell(v) {
-  if (!v || v === "-") return "";
-  if (v instanceof Date) return v.getFullYear() + "-" + String(v.getMonth() + 1).padStart(2, "0") + "-" + String(v.getDate()).padStart(2, "0");
+  if (v === null || v === undefined || v === "" || v === "-") return "";
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return "";
+    return v.getFullYear() + "-" + String(v.getMonth() + 1).padStart(2, "0") + "-" + String(v.getDate()).padStart(2, "0");
+  }
+  if (typeof v === "number") {
+    const d = excelSerialToDate(v);
+    if (d) return d;
+  }
   const s = v.toString().trim();
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  if (!s || s === "-") return "";
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // DD/MM/AAAA (aceita dia/mês com 1 dígito)
+  if (m) return `${m[3]}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); // AAAA-MM-DD
+  if (m) return `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/); // DD/MM/AA
+  if (m) return `20${m[3]}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
+  if (/^\d+(\.\d+)?$/.test(s)) { // texto contendo um número de série de data do Excel
+    const d = excelSerialToDate(Number(s));
+    if (d) return d;
+  }
   return "";
+}
+// Detecta em qual linha da planilha está o cabeçalho de verdade (algumas planilhas têm uma
+// linha de título/logo antes da linha com "Instituição"/"Colaboradora" etc.) e devolve as
+// linhas já convertidas em objetos a partir dali — em vez de assumir sempre a linha 1.
+function looksLikeHeaderRow(rowArr) {
+  const norm = (rowArr || []).map(c => normalizeStr(c));
+  const temInstituicao = norm.some(c => c === "INSTITUICAO");
+  const temColaboradora = norm.some(c => c === "COLABORADORA" || c === "COLABORADOR");
+  return temInstituicao && temColaboradora;
+}
+function sheetToRowsSmart(ws) {
+  const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(raw.length, 15); i++) {
+    if (looksLikeHeaderRow(raw[i])) { headerIdx = i; break; }
+  }
+  return window.XLSX.utils.sheet_to_json(ws, { range: headerIdx, defval: "" });
 }
 function diffDays(a, b) {
   return Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000);
@@ -314,23 +366,58 @@ function exportExcel() {
   window.XLSX.utils.book_append_sheet(wb, ws, "Admissoes");
   window.XLSX.writeFile(wb, `admissoes_central_dias_${today()}.xlsx`);
 }
+// 24/09/2026: modelo de planilha pra importação — mesmas colunas lidas por processImportRows,
+// com uma linha de exemplo mostrando o formato esperado (datas em DD/MM/AAAA).
+function baixarModeloImportacao() {
+  if (!window.XLSX) { alert("A biblioteca de Excel ainda não carregou. Aguarde um instante e tente de novo."); return; }
+  const headers = ["Instituição", "Filial", "Colaboradora", "Cargo", "Início", "Matrícula", "Matrícula eSocial", "Experiência", "Prorrogação Experiência"];
+  const exemplo = ["CEDAP", "ALECRIM", "Maria da Silva", "Auxiliar Administrativo", "01/09/2026", "1234", "987654321", "15/10/2026", "30/11/2026"];
+  const ws = window.XLSX.utils.aoa_to_sheet([headers, exemplo]);
+  const wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Admissoes");
+  window.XLSX.writeFile(wb, "modelo_importacao_admissoes.xlsx");
+}
 
 async function processImportRows(rowsBySheet) {
   const { db, collection, addDoc, updateDoc, doc, serverTimestamp } = ctx;
   let novos = 0, semEmpresa = 0, ignorados = 0, filiaisCriadas = 0;
-  const empByLabel = {};
-  (ctx.getEmpresas() || []).forEach(em => { empByLabel[em.label.trim().toUpperCase()] = em.id; });
+  const empresasList = ctx.getEmpresas() || [];
+  const empByNorm = {};
+  empresasList.forEach(em => { empByNorm[normalizeStr(em.label)] = em.id; });
   const filiaisCache = ctx.getFiliais() || [];
   const parsedRows = [];
+  // 24/09/2026: diagnóstico pra mostrar no alerta final — em vez de só contar quantas linhas
+  // foram ignoradas, mostra os nomes de instituição e os valores de data que não foram
+  // reconhecidos, pra dar pro Leonardo a chance de ver exatamente o que corrigir na planilha.
+  const instNaoReconhecidas = {};
+  const datasInvalidas = [];
   for (const rows of rowsBySheet) {
     for (const row of rows) {
       const instRaw = getRowField(row, "Instituicao", "Instituição").trim();
       const colaborador = getRowField(row, "Colaboradora", "Colaborador").trim();
       if (!instRaw || !colaborador) { ignorados++; continue; }
-      const empId = empByLabel[instRaw.toUpperCase()];
-      if (!empId) { semEmpresa++; continue; }
-      const inicio = parseDateCell(getRowField(row, "Inicio", "Início"));
-      if (!inicio) { ignorados++; continue; }
+      let empId = empByNorm[normalizeStr(instRaw)];
+      if (!empId) {
+        // não achou igual — tenta por aproximação (nome abreviado ou com pequena diferença)
+        const instNorm = normalizeStr(instRaw);
+        const candidatos = empresasList.filter(em => {
+          const n = normalizeStr(em.label);
+          return n && instNorm && (n.includes(instNorm) || instNorm.includes(n));
+        });
+        if (candidatos.length === 1) empId = candidatos[0].id;
+      }
+      if (!empId) {
+        semEmpresa++;
+        instNaoReconhecidas[instRaw] = (instNaoReconhecidas[instRaw] || 0) + 1;
+        continue;
+      }
+      const inicioRaw = getRowField(row, "Inicio", "Início");
+      const inicio = parseDateCell(inicioRaw);
+      if (!inicio) {
+        ignorados++;
+        if (inicioRaw && datasInvalidas.length < 5 && !datasInvalidas.includes(inicioRaw)) datasInvalidas.push(inicioRaw);
+        continue;
+      }
 
       const filialRaw = getRowField(row, "Filial").trim();
       let filialId = "";
@@ -392,7 +479,15 @@ async function processImportRows(rowsBySheet) {
         } catch (e) {}
       }
     }
-    alert(`Importação concluída!\n\n✅ ${novos} admissão(ões) nova(s) importada(s)\n${action === "overwrite" ? `🔄 ${duplicates.length} admissão(ões) já existente(s) foram atualizadas\n` : duplicates.length ? `⏭️ ${duplicates.length} admissão(ões) já existente(s) foram ignoradas (sem alteração)\n` : ""}${filiaisCriadas ? `🏬 ${filiaisCriadas} filial(is) nova(s) cadastrada(s) automaticamente\n` : ""}${semEmpresa ? `⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de instituição não encontrado no sistema (confira se o nome na planilha é exatamente igual ao cadastrado)\n` : ""}${ignorados ? `⚠️ ${ignorados} linha(s) ignorada(s) — sem instituição, colaboradora ou data de início preenchidos\n` : ""}📌 Todas entraram como Prazo de Experiência (é o único tipo que a planilha identifica, pelas colunas Experiência/Prorrogação). Se alguma admissão for Prazo Determinado ou Indeterminado, ajuste manualmente depois pelo botão ✎.`);
+    let extra = "";
+    const instList = Object.entries(instNaoReconhecidas).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (instList.length) {
+      extra += `\n📛 Nome(s) de instituição não reconhecido(s): ${instList.map(([n, c]) => `"${n}"${c > 1 ? ` (${c}x)` : ""}`).join(", ")}. Confira se está escrito igual ao nome cadastrado na Central Dias (Desligamentos → Empresas).\n`;
+    }
+    if (datasInvalidas.length) {
+      extra += `\n📅 Valor(es) de data de início não reconhecido(s): ${datasInvalidas.map(d => `"${d}"`).join(", ")}. Use o formato DD/MM/AAAA ou deixe a coluna formatada como data no Excel.\n`;
+    }
+    alert(`Importação concluída!\n\n✅ ${novos} admissão(ões) nova(s) importada(s)\n${action === "overwrite" ? `🔄 ${duplicates.length} admissão(ões) já existente(s) foram atualizadas\n` : duplicates.length ? `⏭️ ${duplicates.length} admissão(ões) já existente(s) foram ignoradas (sem alteração)\n` : ""}${filiaisCriadas ? `🏬 ${filiaisCriadas} filial(is) nova(s) cadastrada(s) automaticamente\n` : ""}${semEmpresa ? `⚠️ ${semEmpresa} linha(s) ignorada(s) — nome de instituição não encontrado no sistema\n` : ""}${ignorados ? `⚠️ ${ignorados} linha(s) ignorada(s) — sem instituição, colaboradora ou data de início preenchidos\n` : ""}${extra}\n📌 Todas entraram como Prazo de Experiência (é o único tipo que a planilha identifica, pelas colunas Experiência/Prorrogação). Se alguma admissão for Prazo Determinado ou Indeterminado, ajuste manualmente depois pelo botão ✎.`);
   };
 
   if (duplicates.length) {
@@ -573,6 +668,7 @@ function render() {
     <button class="adm-btn" data-action="report-periodo">📊 Relatório por Período</button>
     <button class="adm-btn" data-action="import-trigger">📥 Importar Excel</button>
     <input type="file" data-action="import-file" accept=".xlsx,.xls" style="display:none">
+    <button class="adm-btn" data-action="baixar-modelo">📎 Baixar modelo</button>
     <button class="adm-btn primary" data-action="toggle-form">${formOpen ? "✕ Cancelar" : "＋ Nova Admissão"}</button>
   </div>`;
 
@@ -888,6 +984,7 @@ function wireEvents() {
     if (action === "export-excel") { exportExcel(); return; }
     if (action === "report-periodo") { openReportModal(); return; }
     if (action === "import-trigger") { mountEl.querySelector('[data-action="import-file"]')?.click(); return; }
+    if (action === "baixar-modelo") { baixarModeloImportacao(); return; }
   });
 
   mountEl.addEventListener("change", e => {
@@ -904,7 +1001,7 @@ function wireEvents() {
       if (!file) return;
       file.arrayBuffer().then(buf => {
         const wb = window.XLSX.read(buf, { type: "array", cellDates: true });
-        const rowsBySheet = wb.SheetNames.map(sn => window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: "" }));
+        const rowsBySheet = wb.SheetNames.map(sn => sheetToRowsSmart(wb.Sheets[sn]));
         return processImportRows(rowsBySheet);
       }).catch(err => alert("Erro ao importar: " + (err?.message || err)));
       return;
