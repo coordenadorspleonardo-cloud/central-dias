@@ -798,7 +798,7 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <button class="tab" data-tab="admissoes">📥 Admissões <span class="tbadge" id="admissoesTabBadge" style="display:none;background:var(--nor)"></span></button>
     <button class="tab" data-tab="fechamento">🧾 Fechamento da Folha</button>
     <button class="tab" data-tab="informacoes">ℹ️ Informações</button>
-    <button class="tab" data-tab="notas">📝 Quadro de Anotações</button>
+    <button class="tab" data-tab="caixa">📥 Caixa de Entrada <span class="tbadge" id="caixaTabBadge" style="display:none;background:var(--accent2)"></span></button>
     <button class="tab" data-tab="config">⚙️ Configurações</button>
   </div>
 
@@ -1015,12 +1015,8 @@ body.has-bg-image .tabs{background:color-mix(in srgb, var(--s1) 70%, transparent
     <div class="view" id="view-dados">
       <div id="infoDadosRoot"></div>
     </div>
-    <div class="view" id="view-notas">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <p style="font-size:.72rem;color:var(--text2)">📝 Suas anotações pessoais — só você vê e edita as suas.</p>
-        <button id="btnNewNote" class="btn-save-m">📝 Nova Anotação</button>
-      </div>
-      <div id="notesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;"></div>
+    <div class="view" id="view-caixa">
+      <div id="caixaEntradaRoot"></div>
     </div>
     <div class="view" id="view-config">
       <div class="settings-grid">
@@ -1183,6 +1179,7 @@ import {
 import { initFechamento, renderFechamento } from "./fechamento.js";
 import { initAdmissoes, renderAdmissoes } from "./admissoes.js";
 import { initDadosAcessos, renderInfoDados } from "./dadosacessos.js";
+import { initCaixaEntrada, renderCaixaEntrada } from "./caixaentrada.js";
 
 // ── CONFIG ──
 const ADMIN_EMAIL = "coordenadorspleonardo@grupodiasbrasil.com.br";
@@ -2148,6 +2145,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
     if(btn.dataset.tab==="chat")renderChat();
     if(btn.dataset.tab==="admissoes")renderAdmissoes();
     if(btn.dataset.tab==="fechamento")renderFechamento();
+    if(btn.dataset.tab==="caixa")renderCaixaEntrada();
   });
 });
 
@@ -2161,7 +2159,7 @@ const MAIN_TAB_META=[
   {tab:"acompanhamento",label:"👁️ Acompanhamento"},{tab:"chat",label:"💬 Chat"},{tab:"deslig",label:"🚪 Desligamentos"},
   {tab:"pendencias",label:"🗂️ Pendências"},{tab:"afastamentos",label:"🩺 Afastamentos"},{tab:"admissoes",label:"📥 Admissões"},
   {tab:"fechamento",label:"🧾 Fechamento da Folha"},{tab:"informacoes",label:"ℹ️ Informações"},
-  {tab:"notas",label:"📝 Quadro de Anotações"},{tab:"config",label:"⚙️ Configurações"}
+  {tab:"caixa",label:"📥 Caixa de Entrada"},{tab:"config",label:"⚙️ Configurações"}
 ];
 function getSavedOrder(key,allKeys){
   let saved=[];
@@ -2500,8 +2498,15 @@ function startListeners(){
     db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,serverTimestamp,
     getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members,getEmpresas:()=>empresas,getFiliais:()=>filiais
   });
+  unsubCaixaEntrada=initCaixaEntrada({
+    db,collection,doc,addDoc,updateDoc,deleteDoc,onSnapshot,writeBatch,serverTimestamp,
+    getUser:()=>user,getIsAdmin:()=>isAdmin,getMembers:()=>members,getEmpresas:()=>empresas,
+    openTaskPrefill:(p)=>openModal(null,p),
+    openPendPrefill:(p)=>openPendModal(null,p),
+    openDegPrefill:(p)=>openDegModal(null,p)
+  });
 }
-function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes,unsubDadosAcessos].forEach(u=>u&&u());}
+function stopListeners(){[unsubT,unsubM,unsubMbr,unsubEmp,unsubPresence,unsubGroups,unsubTemplates,unsubActivity,unsubNotifEmails,unsubEmailUsage,unsubNotes,unsubFiliais,unsubDesligamentos,unsubInvites,unsubProcessosDefs,unsubProcessoExec,unsubPendencias,unsubPendDescricoes,unsubAfastamentosDp,unsubFechamento,unsubAdmissoes,unsubDadosAcessos,unsubCaixaEntrada].forEach(u=>u&&u());}
 
 async function purgeDone(){
   const THIRTY_DAYS=30*24*60*60*1000;
@@ -3920,16 +3925,16 @@ function openPreview(id){
   });
 }
 
-function openModal(id){
+function openModal(id,prefill){
   editId=id||null;const t=id?tasks.find(t=>t.id===id):null;
   document.getElementById("modalTitle").textContent=t?"Editar Tarefa":"Nova Tarefa";
-  document.getElementById("f-tit").value=t?t.tit:"";
-  document.getElementById("f-det").value=t?t.det||"":"";
+  document.getElementById("f-tit").value=t?t.tit:(prefill?.tit||"");
+  document.getElementById("f-det").value=t?t.det||"":(prefill?.det||"");
   document.getElementById("f-prio").value=t?t.prio:"urg";
   document.getElementById("f-data").value=t?t.date||today():today();
   document.getElementById("f-hora").value=t?t.hora||"":"";
   document.getElementById("f-recur").value=t?.recurrence?.type||"";
-  modalSelectedEmps=t?taskEmps(t):[];
+  modalSelectedEmps=t?taskEmps(t):(prefill?.empIds||[]);
   modalSelectedResps=t?taskResps(t):[];
   modalSelectedWatchers=t?(t.watchers||[]):[];
   modalSelectedConferentes=t?(t.conferentes||[]):[];
@@ -4019,6 +4024,7 @@ document.getElementById("btnSyncInvites")?.addEventListener("click",async()=>{
 
 let notes=[];
 let unsubNotes=null;
+let unsubCaixaEntrada=null;
 let desligamentos=[];
 let unsubDesligamentos=null;
 let filiais=[];
@@ -4190,7 +4196,7 @@ function populatePendFilialSel(empId){
 document.getElementById("pend-emp")?.addEventListener("change",function(){populatePendFilialSel(this.value);});
 
 // --- Modal: abrir / fechar / salvar / excluir ---
-function openPendModal(id){
+function openPendModal(id,prefill){
   editPendId=id||null;
   const p=id?pendencias.find(x=>x.id===id):null;
   document.getElementById("modalPendTitle").textContent=p?"Editar Pendência":"Nova Pendência";
@@ -4200,7 +4206,7 @@ function openPendModal(id){
   populatePendEmpSel();
   document.getElementById("pend-dre").value=p?p.dre||DRE_OPTIONS[0]:DRE_OPTIONS[0];
   document.getElementById("pend-responsavel").value=p?p.responsavel||"":"";
-  document.getElementById("pend-emp").value=p?p.emp:(document.getElementById("pend-emp").options[0]?.value||"");
+  document.getElementById("pend-emp").value=p?p.emp:(prefill?.empId||document.getElementById("pend-emp").options[0]?.value||"");
   populatePendFilialSel(document.getElementById("pend-emp").value);
   document.getElementById("pend-filial").value=p?p.filial||"":"";
   document.getElementById("pend-trimestre").value=p?p.trimestre||"1":"1";
@@ -4209,7 +4215,7 @@ function openPendModal(id){
   document.getElementById("pend-entrega").value=p?p.entrega||"":"";
   document.getElementById("pend-descricao").value=p?p.descricao||"":"";
   document.getElementById("pend-descricao-novo").value="";
-  document.getElementById("pend-observacao").value=p?p.observacao||"":"";
+  document.getElementById("pend-observacao").value=p?p.observacao||"":(prefill?.observacao||"");
   document.getElementById("pend-status").value=p?p.status||"nao_iniciado":"nao_iniciado";
   document.getElementById("modalPendOv").classList.add("open");
 }
@@ -4771,13 +4777,13 @@ function openDegPreview(id){
   ov.querySelector("#btnEstabFromDegPreview")?.addEventListener("click",()=>{ov.remove();openEstabModal(d.id,[]);});
 }
 
-function openDegModal(id){
+function openDegModal(id,prefill){
   editDegId=id||null;
   const d=id?desligamentos.find(x=>x.id===id):null;
   document.getElementById("modalDegTitle").textContent=d?"Editar Desligamento":"Novo Desligamento";
   const vis=isAdmin?empresas:empresas.filter(e=>!e.adminOnly);
   document.getElementById("deg-emp").innerHTML=vis.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join("");
-  document.getElementById("deg-emp").value=d?d.emp:(vis[0]?.id||"");
+  document.getElementById("deg-emp").value=d?d.emp:(prefill?.empId||vis[0]?.id||"");
   populateDegFilialSel(document.getElementById("deg-emp").value);
   document.getElementById("deg-filial").value=d?d.filial||"":"";
   document.getElementById("deg-colab").value=d?d.colaborador:"";
